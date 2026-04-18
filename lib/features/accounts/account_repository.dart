@@ -56,6 +56,15 @@ class AccountRepository {
       }
       list.add(account);
       await saveAll(list);
+
+      // ensure we reconcile with remote after adding
+      try {
+        print('[AccountRepository] add(): triggering post-add sync/reconcile');
+        await printMergedUniqueCustomers();
+      } catch (e) {
+        print('[AccountRepository] add(): post-add sync failed: $e');
+      }
+
       return account;
     } on AccountValidationException {
       rethrow;
@@ -153,6 +162,14 @@ class AccountRepository {
         print('[AccountRepository] Remote update/insert attempt failed: $e');
         print(st);
       }
+
+      // ensure we reconcile with remote after updating
+      try {
+        print('[AccountRepository] update(): triggering post-update sync/reconcile');
+        await printMergedUniqueCustomers();
+      } catch (e) {
+        print('[AccountRepository] update(): post-update sync failed: $e');
+      }
     } on AccountValidationException {
       rethrow;
     } catch (e) {
@@ -233,6 +250,14 @@ class AccountRepository {
       } catch (e, st) {
         print('[AccountRepository] Remote delete attempt failed: $e');
         print(st);
+      }
+
+      // ensure we reconcile with remote after deleting
+      try {
+        print('[AccountRepository] delete(): triggering post-delete sync/reconcile');
+        await printMergedUniqueCustomers();
+      } catch (e) {
+        print('[AccountRepository] delete(): post-delete sync failed: $e');
       }
     } catch (e) {
       throw Exception('Failed to delete account: ${_humanizeError(e)}');
