@@ -14,7 +14,8 @@ class Dashboard extends StatefulWidget {
   State<Dashboard> createState() => _DashboardState();
 }
 
-class _DashboardState extends State<Dashboard> {
+class _DashboardState extends State<Dashboard>
+    with SingleTickerProviderStateMixin {
   final AccountRepository _repo = AccountRepository();
   final NumberFormat _fmt = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
 
@@ -216,10 +217,25 @@ class _DashboardState extends State<Dashboard> {
   }
 
   void _onAddPressed() async {
-    final res = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(builder: (_) => AddAccountScreen()),
+    final sheetController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+      reverseDuration: const Duration(milliseconds: 320),
     );
+
+    bool? res;
+    try {
+      res = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        transitionAnimationController: sheetController,
+        builder: (_) => const AddAccountScreen(asBottomSheet: true),
+      );
+    } finally {
+      sheetController.dispose();
+    }
+
     if (res == true) {
       await _refresh();
     }
