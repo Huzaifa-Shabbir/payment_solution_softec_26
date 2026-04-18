@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
 import '../accounts/account_model.dart';
 import '../accounts/account_repository.dart';
 import '../accounts/add_account_screen.dart';
@@ -163,11 +164,8 @@ class _DashboardState extends State<Dashboard>
                 icon: const Icon(Icons.more_vert),
                 onSelected: (value) async {
                   if (value == 'edit') {
-                    // open add/edit screen (returns true on saved)
-                    final bool? res = await Navigator.push<bool>(
-                      context,
-                      MaterialPageRoute(builder: (_) => AddAccountScreen(account: a)),
-                    );
+                    // open add/edit screen via go_router
+                    final res = await context.pushNamed<bool>('addAccount', extra: a);
                     if (res == true) {
                       await _refresh();
                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account saved')));
@@ -224,12 +222,14 @@ class _DashboardState extends State<Dashboard>
                   PopupMenuItem(value: 'delete', child: Text('Delete')),
                 ],
               ),
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AccountDetailScreen(account: a))).then((res) {
+        onTap: () async {
+          final res = await context.pushNamed<bool>('accountDetail', extra: a);
           if (res == true) _refresh();
-        }),
+        },
       ),
     );
   }
+
 
   Widget _buildList() {
     if (_loading) return const Expanded(child: Center(child: CircularProgressIndicator()));
@@ -247,34 +247,18 @@ class _DashboardState extends State<Dashboard>
   }
 
   void _onAddPressed() async {
-    final sheetController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 420),
-      reverseDuration: const Duration(milliseconds: 320),
-    );
-
-    bool? res;
-    try {
-      res = await showModalBottomSheet<bool>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        transitionAnimationController: sheetController,
-        builder: (_) => const AddAccountScreen(asBottomSheet: true),
-      );
-    } finally {
-      sheetController.dispose();
-    }
-
+    // navigate to add screen using go_router and let AddAccountScreen render asBottomSheet
+    final res = await context.pushNamed<bool>('addAccount', extra: {'asBottomSheet': true});
     if (res == true) {
       await _refresh();
     }
   }
 
   int _selectedIndex = 0;
-  void _onNavTap(int idx) {
+  void _onNavTap(int idx) async {
     if (idx == 1) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const AccountListScreen())).then((_) => _refresh());
+      await context.pushNamed('accounts');
+      await _refresh();
       return;
     }
     setState(() => _selectedIndex = idx);

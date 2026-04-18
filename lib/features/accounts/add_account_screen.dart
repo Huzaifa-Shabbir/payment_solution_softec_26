@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'account_model.dart';
 import 'account_repository.dart';
 
@@ -123,7 +124,8 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
       } else {
         await _repo.update(acc);
       }
-      Navigator.pop(context, true);
+      // use go_router's pop
+      context.pop(true);
     } catch (e) {
       _showMessage('Error: ${e.toString()}');
     } finally {
@@ -213,44 +215,74 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
   Widget build(BuildContext context) {
     final isEdit = widget.account != null;
     if (widget.asBottomSheet) {
-      return SafeArea(
-        child: Padding(
-          padding: EdgeInsets.only(
-            left: 12,
-            right: 12,
-            top: 12,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 12,
-          ),
-          child: SingleChildScrollView(
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade400,
-                      borderRadius: BorderRadius.circular(2),
+      // compute sheet height before building widgets
+      final screenHeight = MediaQuery.of(context).size.height;
+      double sheetHeight;
+
+      //Can change the buttomsheet height from here
+      sheetHeight = screenHeight * 0.67;
+
+      return Align(
+        alignment: Alignment.bottomCenter,
+        child: SizedBox(
+          height: sheetHeight,
+          width: double.infinity,
+          child: Material(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            elevation: 8,
+            clipBehavior: Clip.antiAlias,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(30)), // larger rounded corners
+            ),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 12,
+                  right: 12,
+                  top: 6, // slightly reduced top whitespace
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 12,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // smaller drag handle (no top border line)
+                    Container(
+                      width: 36,
+                      height: 3,
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade400,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
-                  ),
-                  Row(
-                    children: [
-                      Text(
-                        isEdit ? 'Edit Account' : 'Add Account',
-                        style: Theme.of(context).textTheme.titleLarge,
+
+                    Row(
+                      children: [
+                        Text(
+                          isEdit ? 'Edit Account' : 'Add Account',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: () => context.pop(),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+
+                    // Make the form scrollable inside the constrained box
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Form(
+                          key: _formKey,
+                          child: _buildFormFields(),
+                        ),
                       ),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
-                  ),
-                  _buildFormFields(),
-                ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

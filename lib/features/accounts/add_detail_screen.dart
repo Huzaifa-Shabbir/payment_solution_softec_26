@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'account_model.dart';
 import 'account_repository.dart';
 import 'add_account_screen.dart';
@@ -33,13 +34,10 @@ class AccountDetailScreen extends StatelessWidget {
               : PopupMenuButton<String>(
                   onSelected: (v) async {
                     if (v == 'edit') {
-                      final bool? res = await Navigator.push<bool>(
-                        context,
-                        MaterialPageRoute(builder: (_) => AddAccountScreen(account: account)),
-                      );
+                      final res = await context.pushNamed<bool>('addAccount', extra: account);
                       if (res == true) {
                         // signal parent to refresh
-                        Navigator.pop(context, true);
+                        context.pop(true);
                       }
                     } else if (v == 'done') {
                       final confirmed = await showDialog<bool>(
@@ -57,7 +55,7 @@ class AccountDetailScreen extends StatelessWidget {
                         try {
                           final updated = account.copyWith(isPaid: true, lastContactDate: DateTime.now());
                           await repo.update(updated);
-                          Navigator.pop(context, true);
+                          context.pop(true);
                         } catch (e) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to mark done: $e')));
                         }
@@ -77,7 +75,7 @@ class AccountDetailScreen extends StatelessWidget {
                       if (confirmed == true) {
                         try {
                           await repo.delete(account.id);
-                          Navigator.pop(context, true);
+                          context.pop(true);
                         } catch (e) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
                         }

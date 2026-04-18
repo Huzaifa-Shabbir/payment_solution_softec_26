@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'account_model.dart';
 import 'account_repository.dart';
 import 'add_account_screen.dart';
@@ -61,26 +62,8 @@ class _AccountListScreenState extends State<AccountListScreen>
   }
 
   Future<void> _openAdd([Account? account]) async {
-    final sheetController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 420),
-      reverseDuration: const Duration(milliseconds: 320),
-    );
-
-    bool? result;
-    try {
-      result = await showModalBottomSheet<bool>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        transitionAnimationController: sheetController,
-        builder: (_) => AddAccountScreen(account: account, asBottomSheet: true),
-      );
-    } finally {
-      sheetController.dispose();
-    }
-
-    if (result == true && mounted) {
+    final res = await context.pushNamed<bool>('addAccount', extra: {'account': account, 'asBottomSheet': true});
+    if (res == true && mounted) {
       _load();
       _showSuccess(account == null ? 'Account added successfully' : 'Account updated successfully');
     }
@@ -137,7 +120,7 @@ class _AccountListScreenState extends State<AccountListScreen>
                           } else if (value == 'delete') {
                             await _deleteAccount(acc.id);
                           } else if (value == 'details') {
-                            await Navigator.push(context, MaterialPageRoute(builder: (_) => AccountDetailScreen(account: acc)));
+                            await context.pushNamed('accountDetail', extra: acc);
                           }
                         },
                         itemBuilder: (_) => [
@@ -146,7 +129,7 @@ class _AccountListScreenState extends State<AccountListScreen>
                           const PopupMenuItem(value: 'delete', child: Text('Delete')),
                         ],
                       ),
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AccountDetailScreen(account: acc))),
+                onTap: () => context.pushNamed('accountDetail', extra: acc),
               );
             },
           );
