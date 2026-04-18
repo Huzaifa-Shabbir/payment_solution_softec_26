@@ -463,6 +463,92 @@ class AccountRepository {
         }
       }
 
+      // Reconcile merged entries into local storage: create/update local accounts so local reflects merged data.
+      try {
+        final List<Account> newLocalList = [];
+        // build helper lookups from existing local before changes
+        final localById = { for (var a in local) a.id: a };
+        final localByEmail = { for (var a in local.where((e) => e.email.isNotEmpty)) a.email.trim().toLowerCase(): a };
+        final localByPhone = { for (var a in local.where((e) => e.phone.isNotEmpty)) a.phone.trim(): a };
+
+        for (final entry in merged.values) {
+          final canonicalId = '${entry['id'] ?? ''}';
+          final name = '${entry['name'] ?? ''}';
+          final email = '${entry['email'] ?? ''}';
+          final phone = '${entry['phone'] ?? ''}';
+          final amount = (entry['amount'] is num) ? (entry['amount'] as num).toDouble() : double.tryParse('${entry['amount'] ?? '0'}') ?? 0.0;
+          DateTime dueDate = DateTime.now();
+          DateTime lastContact = DateTime.now();
+          try {
+            if (entry['dueDate'] != null) dueDate = DateTime.parse(entry['dueDate']);
+          } catch (_) {}
+          try {
+            if (entry['lastContactDate'] != null) lastContact = DateTime.parse(entry['lastContactDate']);
+          } catch (_) {}
+          final status = '${entry['status'] ?? ''}';
+          final source = '${entry['source'] ?? 'merged'}';
+
+          Account? existing;
+          if (localById.containsKey(canonicalId)) {
+            existing = localById[canonicalId];
+          } else if (email.isNotEmpty && localByEmail.containsKey(email.toLowerCase())) {
+            existing = localByEmail[email.toLowerCase()];
+          } else if (phone.isNotEmpty && localByPhone.containsKey(phone)) {
+            existing = localByPhone[phone];
+          }
+
+          try {
+            if (existing != null) {
+              // recreate account with canonicalId (so we have one id per user) and merged fields
+              final updated = Account(
+                id: canonicalId.isNotEmpty ? canonicalId : existing.id,
+                name: name.isNotEmpty ? name : existing.name,
+                phone: phone.isNotEmpty ? phone : existing.phone,
+                email: email.isNotEmpty ? email : existing.email,
+                amount: amount,
+                dueDate: dueDate,
+                status: status.isNotEmpty ? status : existing.status,
+                lastContactDate: lastContact,
+                isPaid: existing.isPaid || (status.toLowerCase() == 'paid' || status.toLowerCase() == 'done'),
+              );
+              newLocalList.add(updated);
+              print('[AccountRepository] LOCAL UPDATE: id=${updated.id} source=$source name=${updated.name}');
+            } else {
+              // create new local account for remote-only entries
+              final created = Account(
+                id: canonicalId.isNotEmpty ? canonicalId : DateTime.now().millisecondsSinceEpoch.toString(),
+                name: name,
+                phone: phone,
+                email: email,
+                amount: amount,
+                dueDate: dueDate,
+                status: status,
+                lastContactDate: lastContact,
+                isPaid: (status.toLowerCase() == 'paid' || status.toLowerCase() == 'done'),
+              );
+              newLocalList.add(created);
+              print('[AccountRepository] LOCAL CREATE: id=${created.id} source=$source name=${created.name}');
+            }
+          } catch (e, st) {
+            print('[AccountRepository] Failed to create/update local account for merged id=$canonicalId error=$e');
+            print(st);
+            // skip this entry
+          }
+        }
+
+        // Save updated local list (deduplicated by id)
+        final deduped = <String, Account>{};
+        for (final a in newLocalList) {
+          deduped[a.id] = a;
+        }
+        final finalList = deduped.values.toList();
+        await saveAll(finalList);
+        print('[AccountRepository] Local storage reconciled and saved ${finalList.length} accounts');
+      } catch (e, st) {
+        print('[AccountRepository] Failed to reconcile local storage: $e');
+        print(st);
+      }
+
       // Print merged unique customers (single canonical id per entry)
       final keys = merged.keys.toList();
       print('[AccountRepository] ---------- MERGED UNIQUE CUSTOMERS (${keys.length}) ----------');
