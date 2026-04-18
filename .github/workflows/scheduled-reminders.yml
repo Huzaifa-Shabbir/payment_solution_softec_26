@@ -1,0 +1,23 @@
+name: Send Due Reminders
+
+on:
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger send-due-reminders function
+        run: |
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"dryRun":false,"tone":"professional"}' \
+            "https://xidsjmrrxlniqsdipkvg.supabase.co/functions/v1/send-due-reminders"
+
+      - name: Log the result
+        if: always()
+        run: echo "Reminder job completed!"
+
