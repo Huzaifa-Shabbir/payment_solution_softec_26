@@ -55,22 +55,26 @@ class _AccountListScreenState extends State<AccountListScreen> {
 
     try {
       await _repo.delete(id);
-      AccountsSnackBar.showSuccess('Account deleted successfully');
+
+      // ✅ FIX: pass context
+      AccountsSnackBar.showSuccess(context, 'Account deleted successfully');
+
       _load();
     } catch (e) {
-      AccountsSnackBar.showError(_cleanMessage(e));
+      AccountsSnackBar.showError(context, _cleanMessage(e));
     }
   }
 
   Future<void> _openAdd([Account? account]) async {
-    final result = await Navigator.push<String?>(
+    await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => AddAccountScreen(account: account)),
+      MaterialPageRoute(
+        builder: (_) => AddAccountScreen(account: account),
+      ),
     );
-    if (result != null && mounted) {
-      _load();
-      AccountsSnackBar.showSuccess(result);
-    }
+
+    // ✅ Always reload after coming back
+    if (mounted) _load();
   }
 
   @override
@@ -82,7 +86,9 @@ class _AccountListScreenState extends State<AccountListScreen> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
+          }
+
+          if (snapshot.hasError) {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -104,19 +110,24 @@ class _AccountListScreenState extends State<AccountListScreen> {
               ),
             );
           }
+
           final accounts = snapshot.data ?? [];
+
           if (accounts.isEmpty) {
             return const Center(
               child: Text('No accounts yet. Tap + to add one.'),
             );
           }
+
           return ListView.builder(
             itemCount: accounts.length,
             itemBuilder: (context, index) {
               final acc = accounts[index];
+
               return ListTile(
                 title: Text(acc.name),
                 subtitle: Text('${acc.email} • ${acc.phone}'),
+
                 trailing: PopupMenuButton<String>(
                   onSelected: (value) async {
                     if (value == 'edit') {
@@ -127,24 +138,24 @@ class _AccountListScreenState extends State<AccountListScreen> {
                       await Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => AccountDetailScreen(account: acc),
+                          builder: (_) =>
+                              AccountDetailScreen(account: acc),
                         ),
                       );
                     }
                   },
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(
-                      value: 'details',
-                      child: Text('Details'),
-                    ),
-                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'details', child: Text('Details')),
+                    PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    PopupMenuItem(value: 'delete', child: Text('Delete')),
                   ],
                 ),
+
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => AccountDetailScreen(account: acc),
+                    builder: (_) =>
+                        AccountDetailScreen(account: acc),
                   ),
                 ),
               );
@@ -152,6 +163,7 @@ class _AccountListScreenState extends State<AccountListScreen> {
           );
         },
       ),
+
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openAdd(),
         child: const Icon(Icons.add),

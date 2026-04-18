@@ -21,7 +21,6 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
 
   DateTime? _dueDate;
   DateTime? _lastContact;
-  String _status = 'Pending';
 
   final AccountRepository _repo = AccountRepository();
 
@@ -42,7 +41,6 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
       _amountCtrl.text = a.amount.toString();
       _dueDate = a.dueDate;
       _lastContact = a.lastContactDate;
-      _status = a.status;
     } else {
       _dueDate = DateTime.now();
       _lastContact = DateTime.now();
@@ -136,7 +134,7 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
         email: _emailCtrl.text.trim(),
         amount: amount,
         dueDate: _dueDate!,
-        status: _status,
+        status: 'Pending', // ✅ default set internally
         lastContactDate: _lastContact!,
       );
 
@@ -149,8 +147,6 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
       }
 
       if (mounted) Navigator.pop(context);
-    } on AccountValidationException catch (e) {
-      _showError(e.message);
     } catch (e) {
       _showError(e.toString().replaceFirst('Exception: ', ''));
     } finally {
@@ -247,18 +243,6 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
                         (d) => setState(() => _lastContact = d),
                   ),
                 ),
-              ),
-
-              DropdownButtonFormField<String>(
-                value: _status,
-                items: const ['Pending', 'Paid', 'Overdue']
-                    .map((s) => DropdownMenuItem(
-                  value: s,
-                  child: Text(s),
-                ))
-                    .toList(),
-                onChanged: (v) => setState(() => _status = v ?? _status),
-                decoration: const InputDecoration(labelText: 'Status'),
               ),
 
               const SizedBox(height: 20),
