@@ -14,25 +14,35 @@ class Account {
   String email;
   double amount;
   DateTime dueDate;
+  // keep status for backwards compatibility but NOT required by Add screen
   String status;
   DateTime lastContactDate;
+  // New flag to represent paid/done state
+  bool isPaid;
 
-  static const Set<String> allowedStatuses = {'Pending', 'Paid', 'Overdue'};
+  // removed strict allowedStatuses enforcement - status may be legacy/backfilled
+  // static const Set<String> allowedStatuses = {'Pending', 'Paid', 'Overdue'};
 
+  // Updated constructor: use plain parameter types and assign fields in initializer list
   Account({
     required String id,
     required String name,
     required String phone,
     required String email,
-    required this.amount,
-    required this.dueDate,
-    required String status,
-    required this.lastContactDate,
-  }) : id = id.trim(),
-       name = name.trim(),
-       phone = phone.trim(),
-       email = email.trim(),
-       status = status.trim() {
+    required double amount,
+    required DateTime dueDate,
+    String status = '',
+    required DateTime lastContactDate,
+    bool isPaid = false,
+  })  : id = id.trim(),
+        name = name.trim(),
+        phone = phone.trim(),
+        email = email.trim(),
+        amount = amount,
+        dueDate = dueDate,
+        status = status.trim(),
+        lastContactDate = lastContactDate,
+        isPaid = isPaid {
     _validateOrThrow();
   }
 
@@ -71,17 +81,20 @@ class Account {
       throw const AccountValidationException('Amount cannot be negative.');
     }
 
-    if (!allowedStatuses.contains(status)) {
-      throw AccountValidationException(
-        'Status must be one of: ${allowedStatuses.join(', ')}.',
-      );
-    }
-
+    // Due date should be >= last contact date (logical check)
     if (dueDate.isBefore(lastContactDate)) {
       throw const AccountValidationException(
         'Due date cannot be before last contact date.',
       );
     }
+  }
+
+  // Computed status based on isPaid and dates (used by UI)
+  String get computedStatus {
+    if (isPaid) return 'Done';
+    final now = DateTime.now();
+    if (dueDate.isBefore(now)) return 'Overdue';
+    return 'Pending';
   }
 
   Account copyWith({
@@ -92,6 +105,7 @@ class Account {
     DateTime? dueDate,
     String? status,
     DateTime? lastContactDate,
+    bool? isPaid,
   }) {
     return Account(
       id: id,
@@ -102,6 +116,7 @@ class Account {
       dueDate: dueDate ?? this.dueDate,
       status: status ?? this.status,
       lastContactDate: lastContactDate ?? this.lastContactDate,
+      isPaid: isPaid ?? this.isPaid,
     );
   }
 
@@ -116,6 +131,7 @@ class Account {
       'dueDate': dueDate.toIso8601String(),
       'status': status,
       'lastContactDate': lastContactDate.toIso8601String(),
+      'isPaid': isPaid,
     };
   }
 
@@ -138,6 +154,12 @@ class Account {
       throw const AccountValidationException('Last contact date is invalid.');
     }
 
+    // Support legacy status values mapping to isPaid
+    final rawStatus = '${json['status'] ?? ''}';
+    bool legacyPaid = false;
+    final low = rawStatus.toLowerCase();
+    if (low == 'paid' || low == 'done') legacyPaid = true;
+
     return Account(
       id: '${json['id'] ?? ''}',
       name: '${json['name'] ?? ''}',
@@ -145,8 +167,9 @@ class Account {
       email: '${json['email'] ?? ''}',
       amount: parsedAmount,
       dueDate: dueDate,
-      status: '${json['status'] ?? ''}',
+      status: rawStatus,
       lastContactDate: lastContactDate,
+      isPaid: (json['isPaid'] == true) || legacyPaid,
     );
   }
 }
