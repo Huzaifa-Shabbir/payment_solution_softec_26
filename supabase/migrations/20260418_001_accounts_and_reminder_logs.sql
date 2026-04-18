@@ -33,20 +33,26 @@ create index if not exists reminder_logs_account_day_idx
 alter table public.accounts enable row level security;
 alter table public.reminder_logs enable row level security;
 
-create policy if not exists "anon can manage accounts"
+drop policy if exists "anon can manage accounts" on public.accounts;
+
+create policy "anon can manage accounts"
   on public.accounts
   for all
   to anon, authenticated
   using (true)
   with check (true);
 
-create policy if not exists "anon can read reminder logs"
+drop policy if exists "anon can read reminder logs" on public.reminder_logs;
+
+create policy "anon can read reminder logs"
   on public.reminder_logs
   for select
   to anon, authenticated
   using (true);
 
-create policy if not exists "service role can manage reminder logs"
+drop policy if exists "service role can manage reminder logs" on public.reminder_logs;
+
+create policy "service role can manage reminder logs"
   on public.reminder_logs
   for all
   to service_role
