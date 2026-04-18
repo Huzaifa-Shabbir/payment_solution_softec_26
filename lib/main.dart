@@ -1,3 +1,4 @@
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'services/supabase_service.dart';
@@ -108,3 +109,4 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
+>>>>>>> 95de49af0514a404faa573e0170f0ba9d1d418d2
