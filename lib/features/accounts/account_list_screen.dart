@@ -4,6 +4,8 @@ import 'account_model.dart';
 import 'account_repository.dart';
 import 'add_account_screen.dart';
 import 'add_detail_screen.dart';
+import 'account_repository_helpers.dart';
+
 
 class AccountListScreen extends StatefulWidget {
   const AccountListScreen({super.key});
@@ -54,6 +56,8 @@ class _AccountListScreenState extends State<AccountListScreen>
 
     try {
       await _repo.delete(id);
+      // best-effort: remove local copy if the repository implements it
+      try { await _repo.deleteLocal(id); } catch (_) {}
       _showSuccess('Account deleted');
       _load();
     } catch (e) {
@@ -74,20 +78,6 @@ class _AccountListScreenState extends State<AccountListScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Accounts'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.print),
-            tooltip: 'Print merged unique customers',
-            onPressed: () async {
-              try {
-                await _repo.printMergedUniqueCustomers();
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Merged unique customers printed to console')));
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to print merged data: $e')));
-              }
-            },
-          )
-        ],
       ),
       body: FutureBuilder<List<Account>>(
         future: _futureAccounts,

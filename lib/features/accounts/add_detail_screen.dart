@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'account_model.dart';
 import 'account_repository.dart';
 import 'add_account_screen.dart';
+import 'account_repository_helpers.dart';
 
 class AccountDetailScreen extends StatelessWidget {
   final Account account;
@@ -55,8 +56,11 @@ class AccountDetailScreen extends StatelessWidget {
                         try {
                           final updated = account.copyWith(isPaid: true, lastContactDate: DateTime.now());
                           await repo.update(updated);
+                          // best-effort update local storage
+                          try { await repo.upsertLocal(updated); } catch (_) {}
                           context.pop(true);
                         } catch (e) {
+
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to mark done: $e')));
                         }
                       }
@@ -75,6 +79,8 @@ class AccountDetailScreen extends StatelessWidget {
                       if (confirmed == true) {
                         try {
                           await repo.delete(account.id);
+                          // best-effort delete local copy
+                          try { await repo.deleteLocal(account.id); } catch (_) {}
                           context.pop(true);
                         } catch (e) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));

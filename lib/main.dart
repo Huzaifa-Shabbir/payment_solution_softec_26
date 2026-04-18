@@ -76,7 +76,7 @@ class MyApp extends StatelessWidget {
               key: state.pageKey,
               opaque: false,
               barrierColor: Colors.black.withOpacity(0.15),
-              barrierDismissible: true, 
+              barrierDismissible: true,
               maintainState: true,
               child: AddAccountScreen(account: account, asBottomSheet: asBottom),
               transitionsBuilder: (context, animation, secondaryAnimation, child) {

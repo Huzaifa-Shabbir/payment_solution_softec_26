@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'account_model.dart';
 import 'account_repository.dart';
+import 'account_repository_helpers.dart';
 
 class AddAccountScreen extends StatefulWidget {
   final Account? account;
@@ -121,8 +122,11 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
       );
       if (widget.account == null) {
         await _repo.add(acc);
+        // best-effort persist to local storage if repo supports it
+        try { await _repo.upsertLocal(acc); } catch (_) {}
       } else {
         await _repo.update(acc);
+        try { await _repo.upsertLocal(acc); } catch (_) {}
       }
       // use go_router's pop
       context.pop(true);

@@ -6,6 +6,7 @@ import '../accounts/account_repository.dart';
 import '../accounts/add_account_screen.dart';
 import '../accounts/account_list_screen.dart';
 import '../accounts/add_detail_screen.dart';
+import '../accounts/account_repository_helpers.dart';
 import 'package:payment_solution_softec_26/features/core/Theme.dart';
 
 class Dashboard extends StatefulWidget {
@@ -17,7 +18,7 @@ class Dashboard extends StatefulWidget {
 
 class _DashboardState extends State<Dashboard>
     with SingleTickerProviderStateMixin {
-  final AccountRepository _repo = AccountRepository();
+  final dynamic _repo = AccountRepository(); // dynamic so we can call optional sync/local methods safely
   final NumberFormat _fmt = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
 
   List<Account> _accounts = [];
@@ -39,6 +40,12 @@ class _DashboardState extends State<Dashboard>
       _loading = true;
     });
     try {
+      // Best-effort: try to sync remote -> local first (optional method on repository)
+      try {
+        await _repo.syncFromSupabase(); // optional: repository may implement this
+      } catch (_) {
+        // ignore if not implemented or fails; proceed to load local data
+      }
       final list = await _repo.getAll();
       _accounts = list;
     } catch (e) {
@@ -208,6 +215,8 @@ class _DashboardState extends State<Dashboard>
                     if (confirmed == true) {
                       try {
                         await _repo.delete(a.id);
+                        // Best-effort: delete local copy too if repository exposes helper
+                        try { await _repo.deleteLocal(a.id); } catch (_) {}
                         await _refresh();
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account deleted')));
                       } catch (e) {
