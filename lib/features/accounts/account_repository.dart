@@ -254,6 +254,7 @@ class AccountRepository {
 
       // ensure we reconcile with remote after deleting
       try {
+
         print('[AccountRepository] delete(): triggering post-delete sync/reconcile');
         await printMergedUniqueCustomers();
       } catch (e) {
@@ -336,7 +337,8 @@ class AccountRepository {
   // Maps our fields to the customers table columns
   Map<String, dynamic> _toSupabasePayloadFromAccount(Account acct) {
     final payload = <String, dynamic>{
-      // DO NOT include 'id' here — Supabase manages the primary key.
+
+      'id':acct.id,
       'name': acct.name,
       'email': acct.email,
       'phone': acct.phone,
