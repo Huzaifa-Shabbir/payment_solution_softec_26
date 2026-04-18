@@ -71,6 +71,88 @@ class AccountRepository {
       if (idx == -1) throw Exception('Account not found');
       list[idx] = account;
       await saveAll(list);
+
+      // attempt remote update/insert
+      try {
+        final payload = _toSupabasePayloadFromAccount(account);
+        print('[AccountRepository] Remote update: trying update by id=${account.id} payload=$payload');
+
+        // Try updating by id first
+        var res = await Supabase.instance.client
+            .from('customers')
+            .update(payload)
+            .eq('id', account.id)
+            .select();
+        var rows = _normalizeResponseToList(res);
+
+        if (rows.isNotEmpty) {
+          print('[AccountRepository] Remote update succeeded for id=${account.id} row=${rows.first}');
+          return;
+        }
+
+        // If no rows affected by id, try to find remote by email
+        String? foundId;
+        if (account.email.isNotEmpty) {
+          try {
+            final byEmail = await Supabase.instance.client.from('customers').select().eq('email', account.email).limit(1);
+            final candidates = _normalizeResponseToList(byEmail);
+            if (candidates.isNotEmpty) foundId = _safeString(candidates.first['id']);
+            if (foundId != null && foundId.isNotEmpty) {
+              print('[AccountRepository] Remote record found by email=${account.email} -> id=$foundId');
+            }
+          } catch (e) {
+            print('[AccountRepository] Remote lookup by email failed: $e');
+          }
+        }
+
+        // If not found by email, try phone
+        if ((foundId == null || foundId.isEmpty) && account.phone.isNotEmpty) {
+          try {
+            final byPhone = await Supabase.instance.client.from('customers').select().eq('phone', account.phone).limit(1);
+            final candidates = _normalizeResponseToList(byPhone);
+            if (candidates.isNotEmpty) foundId = _safeString(candidates.first['id']);
+            if (foundId != null && foundId.isNotEmpty) {
+              print('[AccountRepository] Remote record found by phone=${account.phone} -> id=$foundId');
+            }
+          } catch (e) {
+            print('[AccountRepository] Remote lookup by phone failed: $e');
+          }
+        }
+
+        if (foundId != null && foundId.isNotEmpty) {
+          try {
+            final r2 = await Supabase.instance.client.from('customers').update(payload).eq('id', foundId).select();
+            final r2rows = _normalizeResponseToList(r2);
+            if (r2rows.isNotEmpty) {
+              print('[AccountRepository] Remote update succeeded for foundId=$foundId row=${r2rows.first}');
+            } else {
+              print('[AccountRepository] Remote update by foundId returned no rows; attempting insert');
+              final ins = await Supabase.instance.client.from('customers').insert(payload).select();
+              final insRows = _normalizeResponseToList(ins);
+              print('[AccountRepository] Remote insert after failed update returned: ${insRows.isNotEmpty ? insRows.first : ins}');
+            }
+          } catch (e) {
+            print('[AccountRepository] Remote update by foundId failed: $e');
+          }
+        } else {
+          // no remote match -> insert
+          try {
+            print('[AccountRepository] Remote insert: no matching remote record, inserting payload');
+            final ins = await Supabase.instance.client.from('customers').insert(payload).select();
+            final insRows = _normalizeResponseToList(ins);
+            if (insRows.isNotEmpty) {
+              print('[AccountRepository] Remote insert succeeded: ${insRows.first}');
+            } else {
+              print('[AccountRepository] Remote insert returned no rows: $ins');
+            }
+          } catch (e) {
+            print('[AccountRepository] Remote insert failed: $e');
+          }
+        }
+      } catch (e, st) {
+        print('[AccountRepository] Remote update/insert attempt failed: $e');
+        print(st);
+      }
     } on AccountValidationException {
       rethrow;
     } catch (e) {
@@ -83,9 +165,75 @@ class AccountRepository {
       if (id.trim().isEmpty) {
         throw Exception('Account id is required.');
       }
+
       final list = await getAll();
+      Account? acct;
+
+      try {
+        acct = list.firstWhere((a) => a.id == id);
+      } catch (e) {
+        acct = null;
+      }
       final newList = list.where((a) => a.id != id).toList();
       await saveAll(newList);
+
+      // attempt remote delete
+      try {
+        print('[AccountRepository] Remote delete: trying delete by id=$id');
+        var res = await Supabase.instance.client.from('customers').delete().eq('id', id).select();
+        var rows = _normalizeResponseToList(res);
+        if (rows.isNotEmpty) {
+          print('[AccountRepository] Remote delete succeeded for id=$id row=${rows.first}');
+          return;
+        }
+
+        // if not deleted by id, try to find by email/phone from local account before it was removed
+        String? foundId;
+        if (acct != null && acct.email.isNotEmpty) {
+          try {
+            final byEmail = await Supabase.instance.client.from('customers').select().eq('email', acct.email).limit(1);
+            final candidates = _normalizeResponseToList(byEmail);
+            if (candidates.isNotEmpty) foundId = _safeString(candidates.first['id']);
+            if (foundId != null && foundId.isNotEmpty) {
+              print('[AccountRepository] Remote record found by email=${acct.email} -> id=$foundId');
+            }
+          } catch (e) {
+            print('[AccountRepository] Remote lookup by email failed during delete: $e');
+          }
+        }
+
+        if ((foundId == null || foundId.isEmpty) && acct != null && acct.phone.isNotEmpty) {
+          try {
+            final byPhone = await Supabase.instance.client.from('customers').select().eq('phone', acct.phone).limit(1);
+            final candidates = _normalizeResponseToList(byPhone);
+            if (candidates.isNotEmpty) foundId = _safeString(candidates.first['id']);
+            if (foundId != null && foundId.isNotEmpty) {
+              print('[AccountRepository] Remote record found by phone=${acct.phone} -> id=$foundId');
+            }
+          } catch (e) {
+            print('[AccountRepository] Remote lookup by phone failed during delete: $e');
+          }
+        }
+
+        if (foundId != null && foundId.isNotEmpty) {
+          try {
+            final r2 = await Supabase.instance.client.from('customers').delete().eq('id', foundId).select();
+            final r2rows = _normalizeResponseToList(r2);
+            if (r2rows.isNotEmpty) {
+              print('[AccountRepository] Remote delete succeeded for foundId=$foundId row=${r2rows.first}');
+            } else {
+              print('[AccountRepository] Remote delete by foundId returned no rows (response=$r2)');
+            }
+          } catch (e) {
+            print('[AccountRepository] Remote delete by foundId failed: $e');
+          }
+        } else {
+          print('[AccountRepository] No remote match found to delete for local id=$id');
+        }
+      } catch (e, st) {
+        print('[AccountRepository] Remote delete attempt failed: $e');
+        print(st);
+      }
     } catch (e) {
       throw Exception('Failed to delete account: ${_humanizeError(e)}');
     }
@@ -163,8 +311,7 @@ class AccountRepository {
   // Maps our fields to the customers table columns
   Map<String, dynamic> _toSupabasePayloadFromAccount(Account acct) {
     final payload = <String, dynamic>{
-      // removed id to avoid attempting to set PK on insert
-      'id':acct.id,
+      // DO NOT include 'id' here — Supabase manages the primary key.
       'name': acct.name,
       'email': acct.email,
       'phone': acct.phone,
@@ -487,6 +634,7 @@ class AccountRepository {
           } catch (_) {}
           final status = '${entry['status'] ?? ''}';
           final source = '${entry['source'] ?? 'merged'}';
+
 
           Account? existing;
           if (localById.containsKey(canonicalId)) {
