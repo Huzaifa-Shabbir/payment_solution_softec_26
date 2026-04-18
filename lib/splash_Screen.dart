@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'features/core/Theme.dart';
+import 'features/dashboard/dashboard_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -35,8 +36,12 @@ class _SplashScreenState extends State<SplashScreen>
 
     // Navigate after 3 seconds
     Timer(const Duration(seconds: 3), () {
-      context.go('/login'); // change route if needed
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const Dashboard()),
+      );
     });
+
   }
 
   @override
@@ -84,7 +89,7 @@ class _SplashScreenState extends State<SplashScreen>
 
               // App Name
               Text(
-                "SmartPay Reminder",
+                "SmartPay",
                 style: TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,

@@ -7,5 +7,7 @@ class AppColors{
   final Color primary_Text=Color.fromRGBO(47, 58, 54, 2);
   final Color secondary_Text=Colors.white;
   final Color Border = Color(0x525e75);
+  final Color Button = Colors.blueAccent;
+  
 
 }
