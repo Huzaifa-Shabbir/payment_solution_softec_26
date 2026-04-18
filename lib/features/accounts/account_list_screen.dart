@@ -11,7 +11,8 @@ class AccountListScreen extends StatefulWidget {
   State<AccountListScreen> createState() => _AccountListScreenState();
 }
 
-class _AccountListScreenState extends State<AccountListScreen> {
+class _AccountListScreenState extends State<AccountListScreen>
+    with SingleTickerProviderStateMixin {
   final AccountRepository _repo = AccountRepository();
   late Future<List<Account>> _futureAccounts;
 
@@ -28,6 +29,10 @@ class _AccountListScreenState extends State<AccountListScreen> {
   }
 
   void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _showSuccess(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
@@ -48,7 +53,7 @@ class _AccountListScreenState extends State<AccountListScreen> {
 
     try {
       await _repo.delete(id);
-      _showError('Account deleted');
+      _showSuccess('Account deleted');
       _load();
     } catch (e) {
       _showError(e.toString());
@@ -56,11 +61,29 @@ class _AccountListScreenState extends State<AccountListScreen> {
   }
 
   Future<void> _openAdd([Account? account]) async {
-    final result = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(builder: (_) => AddAccountScreen(account: account)),
+    final sheetController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+      reverseDuration: const Duration(milliseconds: 320),
     );
-    if (result == true) _load();
+
+    bool? result;
+    try {
+      result = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        transitionAnimationController: sheetController,
+        builder: (_) => AddAccountScreen(account: account, asBottomSheet: true),
+      );
+    } finally {
+      sheetController.dispose();
+    }
+
+    if (result == true && mounted) {
+      _load();
+      _showSuccess(account == null ? 'Account added successfully' : 'Account updated successfully');
+    }
   }
 
   @override

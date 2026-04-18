@@ -4,7 +4,13 @@ import 'account_repository.dart';
 
 class AddAccountScreen extends StatefulWidget {
   final Account? account;
-  const AddAccountScreen({super.key, this.account});
+  final bool asBottomSheet;
+
+  const AddAccountScreen({
+    super.key,
+    this.account,
+    this.asBottomSheet = false,
+  });
 
   @override
   State<AddAccountScreen> createState() => _AddAccountScreenState();
@@ -52,11 +58,54 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  String? _validateName(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Name is required';
+    if (value.trim().length < 2) return 'Name must have at least 2 characters';
+    return null;
+  }
+
+  String? _validatePhone(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Phone is required';
+    final phoneRegExp = RegExp(r'^\+?[0-9]{7,15}$');
+    if (!phoneRegExp.hasMatch(value.trim())) {
+      return 'Phone must be 7-15 digits (optional +)';
+    }
+    return null;
+  }
+
+  String? _validateEmail(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Email is required';
+    final emailRegExp = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+    if (!emailRegExp.hasMatch(value.trim())) return 'Invalid email format';
+    return null;
+  }
+
+  String? _validateAmount(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Amount is required';
+    final amount = double.tryParse(value.trim());
+    if (amount == null) return 'Enter a valid number';
+    if (amount < 0) return 'Amount cannot be negative';
+    return null;
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_dueDate == null || _lastContact == null) {
+      _showMessage('Please select both due date and last contact date.');
+      return;
+    }
+    if (_dueDate!.isBefore(_lastContact!)) {
+      _showMessage('Due date cannot be before last contact date.');
+      return;
+    }
+
     setState(() => _saving = true);
     try {
-      final amount = double.tryParse(_amountCtrl.text) ?? 0.0;
+      final amount = double.tryParse(_amountCtrl.text.trim());
+      if (amount == null) {
+        _showMessage('Amount must be a valid number.');
+        return;
+      }
       final id = widget.account?.id ?? DateTime.now().millisecondsSinceEpoch.toString();
       final acc = Account(
         id: id,
@@ -64,17 +113,15 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
         phone: _phoneCtrl.text.trim(),
         email: _emailCtrl.text.trim(),
         amount: amount,
-        dueDate: _dueDate ?? DateTime.now(),
+        dueDate: _dueDate!,
         // status will be computed by the app; new accounts start unpaid (isPaid=false)
-        lastContactDate: _lastContact ?? DateTime.now(),
+        lastContactDate: _lastContact!,
         isPaid: widget.account?.isPaid ?? false,
       );
       if (widget.account == null) {
         await _repo.add(acc);
-        _showMessage('Account added');
       } else {
         await _repo.update(acc);
-        _showMessage('Account updated');
       }
       Navigator.pop(context, true);
     } catch (e) {
@@ -82,6 +129,74 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Widget _buildFormFields() {
+    return Column(
+      children: [
+        TextFormField(
+          controller: _nameCtrl,
+          decoration: const InputDecoration(labelText: 'Name'),
+          validator: _validateName,
+        ),
+        TextFormField(
+          controller: _phoneCtrl,
+          decoration: const InputDecoration(labelText: 'Phone'),
+          keyboardType: TextInputType.phone,
+          validator: _validatePhone,
+        ),
+        TextFormField(
+          controller: _emailCtrl,
+          decoration: const InputDecoration(labelText: 'Email'),
+          keyboardType: TextInputType.emailAddress,
+          validator: _validateEmail,
+        ),
+        TextFormField(
+          controller: _amountCtrl,
+          decoration: const InputDecoration(labelText: 'Amount'),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          validator: _validateAmount,
+        ),
+        const SizedBox(height: 10),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Due Date'),
+          subtitle: Text(_dueDate?.toLocal().toString().split(' ').first ?? ''),
+          trailing: IconButton(
+            icon: const Icon(Icons.calendar_today),
+            onPressed: () => _pickDate(context, _dueDate, (d) => setState(() => _dueDate = d)),
+          ),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Last Contact'),
+          subtitle: Text(_lastContact?.toLocal().toString().split(' ').first ?? ''),
+          trailing: IconButton(
+            icon: const Icon(Icons.calendar_today),
+            onPressed: () => _pickDate(context, _lastContact, (d) => setState(() => _lastContact = d)),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'Status will be computed automatically (Pending/Overdue). Use the dashboard to mark Done (paid).',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(widget.account != null ? 'Update' : 'Add'),
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _pickDate(BuildContext context, DateTime? initial, ValueChanged<DateTime> onPicked) async {
@@ -97,6 +212,52 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.account != null;
+    if (widget.asBottomSheet) {
+      return SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 12,
+            right: 12,
+            top: 12,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 12,
+          ),
+          child: SingleChildScrollView(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Text(
+                        isEdit ? 'Edit Account' : 'Add Account',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  _buildFormFields(),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(title: Text(isEdit ? 'Edit Account' : 'Add Account')),
       body: Padding(
@@ -105,67 +266,7 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
           key: _formKey,
           child: ListView(
             children: [
-              TextFormField(
-                controller: _nameCtrl,
-                decoration: const InputDecoration(labelText: 'Name'),
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Name is required' : null,
-              ),
-              TextFormField(
-                controller: _phoneCtrl,
-                decoration: const InputDecoration(labelText: 'Phone'),
-                keyboardType: TextInputType.phone,
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Phone is required' : null,
-              ),
-              TextFormField(
-                controller: _emailCtrl,
-                decoration: const InputDecoration(labelText: 'Email'),
-                keyboardType: TextInputType.emailAddress,
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return 'Email is required';
-                  if (!v.contains('@')) return 'Invalid email';
-                  return null;
-                },
-              ),
-              TextFormField(
-                controller: _amountCtrl,
-                decoration: const InputDecoration(labelText: 'Amount'),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return 'Amount is required';
-                  if (double.tryParse(v) == null) return 'Enter a valid number';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 10),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Due Date'),
-                subtitle: Text(_dueDate?.toLocal().toString().split(' ').first ?? ''),
-                trailing: IconButton(
-                  icon: const Icon(Icons.calendar_today),
-                  onPressed: () => _pickDate(context, _dueDate, (d) => setState(() => _dueDate = d)),
-                ),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Last Contact'),
-                subtitle: Text(_lastContact?.toLocal().toString().split(' ').first ?? ''),
-                trailing: IconButton(
-                  icon: const Icon(Icons.calendar_today),
-                  onPressed: () => _pickDate(context, _lastContact, (d) => setState(() => _lastContact = d)),
-                ),
-              ),
-              // Status is determined by the app (isPaid + dueDate). User does not set it here.
-              const SizedBox(height: 12),
-              const Text(
-                'Status will be computed automatically (Pending/Overdue). Use the dashboard to mark Done (paid).',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _saving ? null : _save,
-                child: _saving ? const CircularProgressIndicator() : Text(isEdit ? 'Update' : 'Add'),
-              )
+              _buildFormFields(),
             ],
           ),
         ),
