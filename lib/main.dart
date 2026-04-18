@@ -3,11 +3,22 @@ import 'services/supabase_service.dart';
 import 'splash_Screen.dart';
 import 'services/local_storage.dart';
 import 'core/utils/app_messenger.dart';
+import 'features/accounts/account_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SupabaseService.init();
   await LocalStorage.init();
+
+  // one-time startup sync/reconcile
+  try {
+    print('[main] Running startup sync/reconcile with Supabase');
+    await AccountRepository().printMergedUniqueCustomers();
+    print('[main] Startup sync/reconcile completed');
+  } catch (e) {
+    print('[main] Startup sync/reconcile failed: $e');
+  }
+
   runApp(const MyApp());
 }
 
