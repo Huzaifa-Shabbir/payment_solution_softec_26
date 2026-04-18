@@ -10,6 +10,12 @@ import 'features/accounts/account_list_screen.dart';
 import 'features/accounts/add_account_screen.dart';
 import 'features/accounts/add_detail_screen.dart';
 import 'features/accounts/account_model.dart';
+import 'features/core/Theme.dart';
+import 'features/setting/setting.dart';
+import 'core/utils/state_Management.dart';
+
+// single app-wide store instance (initialized in main before runApp)
+final AccountStore accountStore = AccountStore();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +30,9 @@ void main() async {
   } catch (e) {
     print('[main] Startup sync/reconcile failed: $e');
   }
+
+  // load initial account data before showing UI
+  await accountStore.init();
 
   runApp(const MyApp());
 }
@@ -88,14 +97,31 @@ class MyApp extends StatelessWidget {
             );
           },
         ),
+        GoRoute(
+          name: 'settings',
+          path: '/settings',
+          builder: (context, state) => const SettingsScreen(),
+        ),
       ],
     );
 
-    return MaterialApp.router(
-      title: 'Payment Solution Softec',
-      debugShowCheckedModeBanner: false,
-      scaffoldMessengerKey: appScaffoldMessengerKey,
-      routerConfig: router,
+    // Listen to ThemeController for theme changes across the app.
+    return AccountStoreProvider(
+      store: accountStore,
+      child: AnimatedBuilder(
+        animation: ThemeController.instance,
+        builder: (context, _) {
+          return MaterialApp.router(
+            title: 'Payment Solution Softec',
+            debugShowCheckedModeBanner: false,
+            scaffoldMessengerKey: appScaffoldMessengerKey,
+            routerConfig: router,
+            theme: AppTheme.light(),
+            darkTheme: AppTheme.dark(),
+            themeMode: ThemeController.instance.themeMode,
+          );
+        },
+      ),
     );
   }
 }

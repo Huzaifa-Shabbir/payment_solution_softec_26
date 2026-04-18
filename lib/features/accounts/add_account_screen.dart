@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'account_model.dart';
 import 'account_repository.dart';
 import 'account_repository_helpers.dart';
+import '../core/Theme.dart';
+import '../../core/utils/state_Management.dart';
 
 class AddAccountScreen extends StatefulWidget {
   final Account? account;
@@ -102,6 +104,7 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
     }
 
     setState(() => _saving = true);
+    final store = AccountStoreProvider.of(context);
     try {
       final amount = double.tryParse(_amountCtrl.text.trim());
       if (amount == null) {
@@ -116,17 +119,13 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
         email: _emailCtrl.text.trim(),
         amount: amount,
         dueDate: _dueDate!,
-        // status will be computed by the app; new accounts start unpaid (isPaid=false)
         lastContactDate: _lastContact!,
         isPaid: widget.account?.isPaid ?? false,
       );
       if (widget.account == null) {
-        await _repo.add(acc);
-        // best-effort persist to local storage if repo supports it
-        try { await _repo.upsertLocal(acc); } catch (_) {}
+        await store.addAccount(acc);
       } else {
-        await _repo.update(acc);
-        try { await _repo.upsertLocal(acc); } catch (_) {}
+        await store.updateAccount(acc);
       }
       // use go_router's pop
       context.pop(true);
@@ -138,32 +137,37 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
   }
 
   Widget _buildFormFields() {
+    final colors = AppColors();
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         TextFormField(
           controller: _nameCtrl,
           decoration: const InputDecoration(labelText: 'Name'),
           validator: _validateName,
         ),
+        const SizedBox(height: 8),
         TextFormField(
           controller: _phoneCtrl,
           decoration: const InputDecoration(labelText: 'Phone'),
           keyboardType: TextInputType.phone,
           validator: _validatePhone,
         ),
+        const SizedBox(height: 8),
         TextFormField(
           controller: _emailCtrl,
           decoration: const InputDecoration(labelText: 'Email'),
           keyboardType: TextInputType.emailAddress,
           validator: _validateEmail,
         ),
+        const SizedBox(height: 8),
         TextFormField(
           controller: _amountCtrl,
           decoration: const InputDecoration(labelText: 'Amount'),
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           validator: _validateAmount,
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         ListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Due Date'),
@@ -187,16 +191,17 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
           'Status will be computed automatically (Pending/Overdue). Use the dashboard to mark Done (paid).',
           style: TextStyle(fontSize: 12, color: Colors.grey),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: colors.Button),
             onPressed: _saving ? null : _save,
             child: _saving
                 ? const SizedBox(
                     height: 18,
                     width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
                 : Text(widget.account != null ? 'Update' : 'Add'),
           ),
@@ -218,6 +223,7 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.account != null;
+    final colors = AppColors();
     if (widget.asBottomSheet) {
       // compute sheet height before building widgets
       final screenHeight = MediaQuery.of(context).size.height;
@@ -236,21 +242,15 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
             elevation: 8,
             clipBehavior: Clip.antiAlias,
             shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.vertical(top: Radius.circular(30)), // larger rounded corners
+              borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
             ),
             child: SafeArea(
               top: false,
               child: Padding(
-                padding: EdgeInsets.only(
-                  left: 12,
-                  right: 12,
-                  top: 6, // slightly reduced top whitespace
-                  bottom: MediaQuery.of(context).viewInsets.bottom + 12,
-                ),
+                padding: EdgeInsets.only(left: 14, right: 14, top: 8, bottom: MediaQuery.of(context).viewInsets.bottom + 12),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // smaller drag handle (no top border line)
                     Container(
                       width: 36,
                       height: 3,
@@ -260,29 +260,17 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-
                     Row(
                       children: [
-                        Text(
-                          isEdit ? 'Edit Account' : 'Add Account',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
+                        Text(isEdit ? 'Edit Account' : 'Add Account', style: Theme.of(context).textTheme.titleLarge),
                         const Spacer(),
-                        IconButton(
-                          onPressed: () => context.pop(),
-                          icon: const Icon(Icons.close),
-                        ),
+                        IconButton(onPressed: () => context.pop(), icon: const Icon(Icons.close)),
                       ],
                     ),
                     const SizedBox(height: 6),
-
-                    // Make the form scrollable inside the constrained box
                     Expanded(
                       child: SingleChildScrollView(
-                        child: Form(
-                          key: _formKey,
-                          child: _buildFormFields(),
-                        ),
+                        child: Form(key: _formKey, child: _buildFormFields()),
                       ),
                     ),
                   ],
@@ -298,14 +286,7 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
       appBar: AppBar(title: Text(isEdit ? 'Edit Account' : 'Add Account')),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            children: [
-              _buildFormFields(),
-            ],
-          ),
-        ),
+        child: Form(key: _formKey, child: ListView(children: [_buildFormFields()])),
       ),
     );
   }

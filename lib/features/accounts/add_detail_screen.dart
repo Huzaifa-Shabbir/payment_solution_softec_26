@@ -4,6 +4,8 @@ import 'account_model.dart';
 import 'account_repository.dart';
 import 'add_account_screen.dart';
 import 'account_repository_helpers.dart';
+import '../core/Theme.dart';
+import '../../core/utils/state_Management.dart';
 
 class AccountDetailScreen extends StatelessWidget {
   final Account account;
@@ -22,6 +24,10 @@ class AccountDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final repo = AccountRepository();
+    final colors = AppColors();
+    final textTheme = Theme.of(context).textTheme;
+    final store = AccountStoreProvider.of(context);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Account Details'),
@@ -54,10 +60,7 @@ class AccountDetailScreen extends StatelessWidget {
                       );
                       if (confirmed == true) {
                         try {
-                          final updated = account.copyWith(isPaid: true, lastContactDate: DateTime.now());
-                          await repo.update(updated);
-                          // best-effort update local storage
-                          try { await repo.upsertLocal(updated); } catch (_) {}
+                          await store.markDone(account);
                           context.pop(true);
                         } catch (e) {
 
@@ -78,9 +81,7 @@ class AccountDetailScreen extends StatelessWidget {
                       );
                       if (confirmed == true) {
                         try {
-                          await repo.delete(account.id);
-                          // best-effort delete local copy
-                          try { await repo.deleteLocal(account.id); } catch (_) {}
+                          await store.deleteAccount(account.id);
                           context.pop(true);
                         } catch (e) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
@@ -100,13 +101,13 @@ class AccountDetailScreen extends StatelessWidget {
         padding: const EdgeInsets.all(12.0),
         child: ListView(
           children: [
-            ListTile(title: const Text('Name'), subtitle: Text(_safeString(account.name))),
-            ListTile(title: const Text('Phone'), subtitle: Text(_safeString(account.phone))),
-            ListTile(title: const Text('Email'), subtitle: Text(_safeString(account.email))),
-            ListTile(title: const Text('Amount'), subtitle: Text(account.amount.toStringAsFixed(2))),
-            ListTile(title: const Text('Due Date'), subtitle: Text(_safeDate(account.dueDate))),
-            ListTile(title: const Text('Status'), subtitle: Text(_safeString(account.computedStatus))),
-            ListTile(title: const Text('Last Contact'), subtitle: Text(_safeDate(account.lastContactDate))),
+            ListTile(title: const Text('Name'), subtitle: Text(_safeString(account.name), style: textTheme.bodyLarge)),
+            ListTile(title: const Text('Phone'), subtitle: Text(_safeString(account.phone), style: textTheme.bodyLarge)),
+            ListTile(title: const Text('Email'), subtitle: Text(_safeString(account.email), style: textTheme.bodyLarge)),
+            ListTile(title: const Text('Amount'), subtitle: Text(account.amount.toStringAsFixed(2), style: textTheme.bodyLarge)),
+            ListTile(title: const Text('Due Date'), subtitle: Text(_safeDate(account.dueDate), style: textTheme.bodyLarge)),
+            ListTile(title: const Text('Status'), subtitle: Text(_safeString(account.computedStatus), style: textTheme.bodyLarge)),
+            ListTile(title: const Text('Last Contact'), subtitle: Text(_safeDate(account.lastContactDate), style: textTheme.bodyLarge)),
           ],
         ),
       ),
