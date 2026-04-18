@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'account_model.dart';
+import 'account_repository.dart';
+import 'add_account_screen.dart';
 
 class AccountDetailScreen extends StatelessWidget {
   final Account account;
@@ -17,9 +19,78 @@ class AccountDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final repo = AccountRepository();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Account Details'),
+        actions: [
+          // If the account is marked done, show a green check instead of the options menu.
+          account.isPaid
+              ? const Padding(
+                  padding: EdgeInsets.only(right: 12.0),
+                  child: Icon(Icons.check_circle, color: Colors.green, size: 28),
+                )
+              : PopupMenuButton<String>(
+                  onSelected: (v) async {
+                    if (v == 'edit') {
+                      final bool? res = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(builder: (_) => AddAccountScreen(account: account)),
+                      );
+                      if (res == true) {
+                        // signal parent to refresh
+                        Navigator.pop(context, true);
+                      }
+                    } else if (v == 'done') {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          title: const Text('Mark as done'),
+                          content: Text('Mark ${account.name} as paid/done?'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Mark Done')),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true) {
+                        try {
+                          final updated = account.copyWith(isPaid: true, lastContactDate: DateTime.now());
+                          await repo.update(updated);
+                          Navigator.pop(context, true);
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to mark done: $e')));
+                        }
+                      }
+                    } else if (v == 'delete') {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          title: const Text('Delete account'),
+                          content: Text('Are you sure you want to delete ${account.name}?'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true) {
+                        try {
+                          await repo.delete(account.id);
+                          Navigator.pop(context, true);
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+                        }
+                      }
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    PopupMenuItem(value: 'done', child: Text('Mark as Done')),
+                    PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  ],
+                ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(12.0),

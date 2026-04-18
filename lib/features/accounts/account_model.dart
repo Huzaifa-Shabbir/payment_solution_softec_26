@@ -81,12 +81,7 @@ class Account {
       throw const AccountValidationException('Amount cannot be negative.');
     }
 
-    // Due date should be >= last contact date (logical check)
-    if (dueDate.isBefore(lastContactDate)) {
-      throw const AccountValidationException(
-        'Due date cannot be before last contact date.',
-      );
-    }
+    // Removed strict dueDate vs lastContactDate validation — allow flexibility in entry.
   }
 
   // Computed status based on isPaid and dates (used by UI)

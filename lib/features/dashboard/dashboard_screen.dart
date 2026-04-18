@@ -98,16 +98,23 @@ class _DashboardState extends State<Dashboard>
     });
 
     // compute balance:
-    // balance = (sum of overdue as negative) + (sum of done amounts as positive)
-    double bal = 0.0;
+    // - Overdue (unpaid & past due) contribute negatively.
+    // - Done (isPaid) amounts only offset overdue, up to the overdue total.
+    // - Done must NOT create a positive balance.
+    final now = DateTime.now();
+    double overdueSum = 0.0;
+    double doneSum = 0.0;
     for (final a in _accounts) {
-      final s = a.computedStatus.toLowerCase();
-      if (s.contains('over')) {
-        bal += -a.amount;
-      } else if (s.contains('done')) {
-        bal += a.amount;
+      if (!a.isPaid && a.dueDate.isBefore(now)) {
+        overdueSum += a.amount;
+      }
+      if (a.isPaid) {
+        doneSum += a.amount;
       }
     }
+    final double offset = doneSum < overdueSum ? doneSum : overdueSum;
+    final double remainingOverdue = overdueSum - offset; // >= 0
+    final double bal = -remainingOverdue; // negative or zero; never positive
 
     setState(() {
       _filtered = tmp;
@@ -124,79 +131,102 @@ class _DashboardState extends State<Dashboard>
     return Colors.grey;
   }
 
-  Future<void> _markDone(Account a) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Mark as done'),
-        content: Text('Mark ${a.name} as paid/done?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Mark Done')),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-
-    try {
-      final updated = a.copyWith(isPaid: true, lastContactDate: DateTime.now());
-      await _repo.update(updated);
-      await _refresh();
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Marked as done')));
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to mark done: $e')));
-    }
-  }
-
   Widget _buildTile(Account a) {
     final color = _colorForStatus(a.computedStatus);
     final due = DateFormat.yMMMd().format(a.dueDate);
 
-    // Choose card background: light red for overdue, default otherwise
-    final cardBg = a.computedStatus.toLowerCase().contains('over')
+    // Choose card background:
+    // - Overdue -> light red
+    // - Done -> light green
+    // - Pending (and others) -> default card color
+    final statusLower = a.computedStatus.toLowerCase();
+    final cardBg = statusLower.contains('over')
         ? Colors.red.shade50
-        : Theme.of(context).cardColor;
+        : statusLower.contains('done')
+            ? Colors.green.shade50
+            : Theme.of(context).cardColor;
 
     return Card(
-      color: cardBg, // <-- apply background color here
+      color: cardBg,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       elevation: 1,
       child: ListTile(
         title: Text(a.name, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text('${_fmt.format(a.amount)} • Due: $due'),
-        trailing:
-          // Constrain trailing column to its intrinsic size to prevent overflow.
-          Column(
-            mainAxisSize: MainAxisSize.min, // <-- prevent vertical expansion
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: color.withOpacity(0.25)),
-                ),
-                child: Text(a.computedStatus, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+        // If account is paid/done show a green check icon instead of the three-dots menu
+        trailing: a.isPaid
+            ? const Padding(
+                padding: EdgeInsets.only(right: 8.0),
+                child: Icon(Icons.check_circle, color: Colors.green, size: 28),
+              )
+            : PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert),
+                onSelected: (value) async {
+                  if (value == 'edit') {
+                    // open add/edit screen (returns true on saved)
+                    final bool? res = await Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute(builder: (_) => AddAccountScreen(account: a)),
+                    );
+                    if (res == true) {
+                      await _refresh();
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account saved')));
+                    }
+                  } else if (value == 'done') {
+                    // mark done flow
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: const Text('Mark as done'),
+                        content: Text('Mark ${a.name} as paid/done?'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Mark Done')),
+                        ],
+                      ),
+                    );
+                    if (confirmed == true) {
+                      try {
+                        final updated = a.copyWith(isPaid: true, lastContactDate: DateTime.now());
+                        await _repo.update(updated);
+                        await _refresh();
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Marked as done')));
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to mark done: $e')));
+                      }
+                    }
+                  } else if (value == 'delete') {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: const Text('Delete account'),
+                        content: Text('Are you sure you want to delete ${a.name}?'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+                        ],
+                      ),
+                    );
+                    if (confirmed == true) {
+                      try {
+                        await _repo.delete(a.id);
+                        await _refresh();
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account deleted')));
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+                      }
+                    }
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(value: 'edit', child: Text('Edit')),
+                  PopupMenuItem(value: 'done', child: Text('Mark as Done')),
+                  PopupMenuItem(value: 'delete', child: Text('Delete')),
+                ],
               ),
-              const SizedBox(height: 6),
-              if (a.computedStatus != 'Done')
-                // Limit size of the icon button so it cannot force the Column to expand.
-                SizedBox(
-                  width: 36,
-                  height: 36,
-                  child: IconButton(
-                    iconSize: 20,
-                    padding: EdgeInsets.zero, // tighten touch target padding
-                    icon: Icon(Icons.check_circle, color: Colors.green.shade600),
-                    tooltip: 'Mark as Done',
-                    onPressed: () => _markDone(a),
-                    splashRadius: 18,
-                  ),
-                ),
-            ],
-          ),
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AccountDetailScreen(account: a))),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AccountDetailScreen(account: a))).then((res) {
+          if (res == true) _refresh();
+        }),
       ),
     );
   }

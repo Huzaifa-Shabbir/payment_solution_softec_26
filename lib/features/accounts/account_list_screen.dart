@@ -125,22 +125,27 @@ class _AccountListScreenState extends State<AccountListScreen>
               return ListTile(
                 title: Text(acc.name),
                 subtitle: Text('${acc.email} • ${acc.phone}'),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (value) async {
-                    if (value == 'edit') {
-                      await _openAdd(acc);
-                    } else if (value == 'delete') {
-                      await _deleteAccount(acc.id);
-                    } else if (value == 'details') {
-                      await Navigator.push(context, MaterialPageRoute(builder: (_) => AccountDetailScreen(account: acc)));
-                    }
-                  },
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(value: 'details', child: Text('Details')),
-                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                  ],
-                ),
+                trailing: acc.isPaid
+                    ? const Padding(
+                        padding: EdgeInsets.only(right: 8.0),
+                        child: Icon(Icons.check_circle, color: Colors.green, size: 28),
+                      )
+                    : PopupMenuButton<String>(
+                        onSelected: (value) async {
+                          if (value == 'edit') {
+                            await _openAdd(acc);
+                          } else if (value == 'delete') {
+                            await _deleteAccount(acc.id);
+                          } else if (value == 'details') {
+                            await Navigator.push(context, MaterialPageRoute(builder: (_) => AccountDetailScreen(account: acc)));
+                          }
+                        },
+                        itemBuilder: (_) => [
+                          const PopupMenuItem(value: 'details', child: Text('Details')),
+                          const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                          const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                        ],
+                      ),
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AccountDetailScreen(account: acc))),
               );
             },
