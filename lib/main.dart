@@ -1,9 +1,8 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'services/supabase_service.dart';
 import 'splash_Screen.dart';
-import 'features/core/Theme.dart';
 import 'services/local_storage.dart';
+import 'core/utils/app_messenger.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +20,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Payment Solution Softec',
       debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: appScaffoldMessengerKey,
 
       home: const SplashScreen(),
     );

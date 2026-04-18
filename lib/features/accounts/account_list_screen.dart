@@ -3,6 +3,7 @@ import 'account_model.dart';
 import 'account_repository.dart';
 import 'add_account_screen.dart';
 import 'add_detail_screen.dart';
+import 'accounts_snackbar.dart';
 
 class AccountListScreen extends StatefulWidget {
   const AccountListScreen({super.key});
@@ -27,8 +28,8 @@ class _AccountListScreenState extends State<AccountListScreen> {
     });
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  String _cleanMessage(Object error) {
+    return error.toString().replaceFirst('Exception: ', '');
   }
 
   Future<void> _deleteAccount(String id) async {
@@ -38,8 +39,14 @@ class _AccountListScreenState extends State<AccountListScreen> {
         title: const Text('Delete account'),
         content: const Text('Are you sure you want to delete this account?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );
@@ -48,38 +55,60 @@ class _AccountListScreenState extends State<AccountListScreen> {
 
     try {
       await _repo.delete(id);
-      _showError('Account deleted');
+      AccountsSnackBar.showSuccess('Account deleted successfully');
       _load();
     } catch (e) {
-      _showError(e.toString());
+      AccountsSnackBar.showError(_cleanMessage(e));
     }
   }
 
   Future<void> _openAdd([Account? account]) async {
-    final result = await Navigator.push<bool>(
+    final result = await Navigator.push<String?>(
       context,
       MaterialPageRoute(builder: (_) => AddAccountScreen(account: account)),
     );
-    if (result == true) _load();
+    if (result != null && mounted) {
+      _load();
+      AccountsSnackBar.showSuccess(result);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Accounts'),
-      ),
+      appBar: AppBar(title: const Text('Accounts')),
       body: FutureBuilder<List<Account>>(
         future: _futureAccounts,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _cleanMessage(snapshot.error!),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.red.shade700),
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _load,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            );
           }
           final accounts = snapshot.data ?? [];
           if (accounts.isEmpty) {
-            return const Center(child: Text('No accounts yet. Tap + to add one.'));
+            return const Center(
+              child: Text('No accounts yet. Tap + to add one.'),
+            );
           }
           return ListView.builder(
             itemCount: accounts.length,
@@ -95,16 +124,29 @@ class _AccountListScreenState extends State<AccountListScreen> {
                     } else if (value == 'delete') {
                       await _deleteAccount(acc.id);
                     } else if (value == 'details') {
-                      await Navigator.push(context, MaterialPageRoute(builder: (_) => AccountDetailScreen(account: acc)));
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AccountDetailScreen(account: acc),
+                        ),
+                      );
                     }
                   },
                   itemBuilder: (_) => [
-                    const PopupMenuItem(value: 'details', child: Text('Details')),
+                    const PopupMenuItem(
+                      value: 'details',
+                      child: Text('Details'),
+                    ),
                     const PopupMenuItem(value: 'edit', child: Text('Edit')),
                     const PopupMenuItem(value: 'delete', child: Text('Delete')),
                   ],
                 ),
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AccountDetailScreen(account: acc))),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AccountDetailScreen(account: acc),
+                  ),
+                ),
               );
             },
           );
@@ -117,4 +159,3 @@ class _AccountListScreenState extends State<AccountListScreen> {
     );
   }
 }
-
