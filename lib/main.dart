@@ -1,14 +1,11 @@
-
-import 'dart:convert';
+import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'services/supabase_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   await SupabaseService.init();
-
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -18,13 +15,12 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Payment Solution Softec',
-      // Use HomePage so you can run the customers query from the app/dashboard.
+      theme: ThemeData.dark(),
       home: const HomePage(),
     );
   }
 }
 
-// Add a simple UI to run the Supabase query and display results.
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
 
@@ -33,80 +29,66 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  bool _loading = false;
-  String? _result;
-  String? _error;
+  List<dynamic> customers = [];
+  String? errorMessage;
+  bool isLoading = true;
 
-  Future<void> _fetchCustomers() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomers();
+  }
 
+  Future<void> _loadCustomers() async {
     try {
-      // Make the response dynamic so static analysis won't assume a List.
-      final dynamic res = await SupabaseService.client.from('customers').select();
+      // New Supabase Dart syntax: no .execute()
+      final response = await SupabaseService.client
+          .from('customers')
+          .select();
 
-      // Normalize possible response shapes (Map with 'data' or a raw List/Map).
-      dynamic payload;
-      if (res is Map<String, dynamic> && res.containsKey('data')) {
-        // Safe: res is confirmed to be a Map before using string key access.
-        payload = res['data'];
-      } else {
-        // Otherwise use the raw response (List, Map, etc.).
-        payload = res;
-      }
+      setState(() {
+        customers = response as List<dynamic>;
+        isLoading = false;
+      });
 
-      final pretty = const JsonEncoder.withIndent('  ').convert(payload ?? {});
-      setState(() => _result = pretty);
-      debugPrint('Customers: $pretty');
-    } catch (e, st) {
-      debugPrint('Error fetching customers: $e\n$st');
-      setState(() => _error = e.toString());
-    } finally {
-      setState(() => _loading = false);
+      log('Fetched ${customers.length} customers');
+    } catch (e) {
+      setState(() {
+        errorMessage = e.toString();
+        isLoading = false;
+      });
+      log('Error fetching customers: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Payment Solution')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            ElevatedButton(
-              onPressed: _loading ? null : _fetchCustomers,
-              child: _loading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Fetch Customers'),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: _error != null
-                      ? Text('Error: $_error', style: const TextStyle(color: Colors.red))
-                      : Text(_result ?? 'Press "Fetch Customers" to run the query.'),
-                ),
-              ),
-            ),
-          ],
+      appBar: AppBar(title: const Text('Customers')),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : errorMessage != null
+          ? Center(
+        child: Text(
+          'Error: $errorMessage',
+          style: const TextStyle(color: Colors.red),
         ),
+      )
+          : customers.isEmpty
+          ? const Center(child: Text('No customers found'))
+          : ListView.builder(
+        itemCount: customers.length,
+        itemBuilder: (context, index) {
+          final customer = customers[index];
+          return Card(
+            child: ListTile(
+              title: Text(customer['name'] ?? 'Unnamed'),
+              subtitle: Text(customer['email'] ?? 'No email'),
+              trailing: Text(customer['status'] ?? 'Unknown'),
+            ),
+          );
+        },
       ),
     );
   }
 }
->>>>>>> 95de49af0514a404faa573e0170f0ba9d1d418d2

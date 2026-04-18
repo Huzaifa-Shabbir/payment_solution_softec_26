@@ -6,11 +6,13 @@ class AccountListController {
 
   AccountListController(this.repository);
 
-  List<Account> fetchAccounts() {
-    return repository.getAllAccounts();
+  // READ ALL (FIXED)
+  Future<List<Account>> fetchAccounts() async {
+    return await repository.getAllAccounts();
   }
 
-  void deleteAccount(String id) {
-    repository.deleteAccount(id);
+  // DELETE (FIXED)
+  Future<void> deleteAccount(String id) async {
+    await repository.deleteAccount(id);
   }
 }

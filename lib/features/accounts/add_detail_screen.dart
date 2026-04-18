@@ -6,11 +6,13 @@ class AccountDetailController {
 
   AccountDetailController(this.repository);
 
-  Account? getAccount(String id) {
-    return repository.getAccountById(id);
+  // READ (FIXED)
+  Future<Account?> getAccount(String id) async {
+    return await repository.getAccountById(id);
   }
 
-  void updateAccount(Account updatedAccount) {
-    repository.updateAccount(updatedAccount);
+  // UPDATE (FIXED)
+  Future<void> updateAccount(Account updatedAccount) async {
+    await repository.updateAccount(updatedAccount);
   }
 }

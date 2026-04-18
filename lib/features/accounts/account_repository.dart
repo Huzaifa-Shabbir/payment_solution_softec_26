@@ -2,9 +2,27 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'account_model.dart';
 
 class AccountRepository {
-  final supabase = Supabase.instance.client;
+  final SupabaseClient supabase = Supabase.instance.client;
 
+  // -------------------------
+  // Helper: Map Supabase row → Account
+  // -------------------------
+  Account _fromMap(Map<String, dynamic> data) {
+    return Account(
+      id: data['id'],
+      name: data['name'],
+      phone: data['phone'],
+      email: data['email'],
+      amount: (data['amount'] as num).toDouble(),
+      dueDate: DateTime.parse(data['due_date']),
+      status: data['status'],
+      lastContactDate: DateTime.parse(data['last_contact_date']),
+    );
+  }
+
+  // -------------------------
   // CREATE
+  // -------------------------
   Future<void> addAccount(Account account) async {
     await supabase.from('accounts').insert({
       'id': account.id,
@@ -18,25 +36,36 @@ class AccountRepository {
     });
   }
 
-  // READ
-  Future<List<Account>> getAccounts() async {
-    final response = await supabase.from('accounts').select();
+  // -------------------------
+  // READ ALL
+  // -------------------------
+  Future<List<Account>> getAllAccounts() async {
+    final List<dynamic> data =
+    await supabase.from('accounts').select();
 
-    return (response as List)
-        .map((e) => Account(
-      id: e['id'],
-      name: e['name'],
-      phone: e['phone'],
-      email: e['email'],
-      amount: (e['amount'] as num).toDouble(),
-      dueDate: DateTime.parse(e['due_date']),
-      status: e['status'],
-      lastContactDate: DateTime.parse(e['last_contact_date']),
-    ))
+    return data
+        .map((e) => _fromMap(e as Map<String, dynamic>))
         .toList();
   }
 
+  // -------------------------
+  // READ BY ID
+  // -------------------------
+  Future<Account?> getAccountById(String id) async {
+    final data = await supabase
+        .from('accounts')
+        .select()
+        .eq('id', id)
+        .maybeSingle();
+
+    if (data == null) return null;
+
+    return _fromMap(data);
+  }
+
+  // -------------------------
   // UPDATE
+  // -------------------------
   Future<void> updateAccount(Account account) async {
     await supabase
         .from('accounts')
@@ -47,14 +76,18 @@ class AccountRepository {
       'amount': account.amount,
       'due_date': account.dueDate.toIso8601String(),
       'status': account.status,
-      'last_contact_date':
-      account.lastContactDate.toIso8601String(),
+      'last_contact_date': account.lastContactDate.toIso8601String(),
     })
         .eq('id', account.id);
   }
 
+  // -------------------------
   // DELETE
+  // -------------------------
   Future<void> deleteAccount(String id) async {
-    await supabase.from('accounts').delete().eq('id', id);
+    await supabase
+        .from('accounts')
+        .delete()
+        .eq('id', id);
   }
 }
