@@ -75,7 +75,11 @@ class MyApp extends StatelessWidget {
             return CustomTransitionPage(
               key: state.pageKey,
               opaque: false,
+<<<<<<< Updated upstream
               barrierColor: Colors.black.withOpacity(0.15),
+=======
+              barrierColor: Colors.black.withValues(alpha: 0.15),
+>>>>>>> Stashed changes
               barrierDismissible: true,
               maintainState: true,
               child: AddAccountScreen(account: account, asBottomSheet: asBottom),

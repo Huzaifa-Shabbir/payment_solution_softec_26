@@ -11,6 +11,17 @@ interface AccountRow {
   due_date: string;
 }
 
+interface CustomerRow {
+  id: string;
+  name: string;
+  email: string;
+  amount: number;
+  due_Date?: string;
+  due_date?: string;
+  status?: string;
+  is_paid?: boolean;
+}
+
 interface EmailMessage {
   subject: string;
   body: string;
@@ -29,22 +40,7 @@ Deno.serve(async (req) => {
 
     const today = dateOnly(new Date());
 
-    // Fetch unpaid accounts that are overdue
-    const accountsRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/accounts?is_paid=eq.false&due_date=lt.${today}&select=id,name,email,amount,due_date`,
-      {
-        headers: {
-          apikey: SERVICE_KEY,
-          Authorization: `Bearer ${SERVICE_KEY}`,
-        },
-      }
-    );
-
-    if (!accountsRes.ok) {
-      throw new Error(`Failed to fetch accounts: ${accountsRes.statusText}`);
-    }
-
-    const accounts = (await accountsRes.json()) as AccountRow[];
+    const accounts = await fetchOverdueRows(today);
 
     let sent = 0;
     let skipped = 0;
@@ -320,5 +316,47 @@ function generateEmailMessage(
       `Immediate payment and confirmation are non-negotiable. Act now.\n\n` +
       "Regards,",
   };
+}
+
+async function fetchOverdueRows(today: string): Promise<AccountRow[]> {
+  const headers = {
+    apikey: SERVICE_KEY,
+    Authorization: `Bearer ${SERVICE_KEY}`,
+  };
+
+  // Source of truth: customers table. Support both due_date and due_Date column naming.
+  let customersRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/customers?due_date=lt.${today}&select=id,name,email,amount,due_date,status`,
+    { headers }
+  );
+
+  if (!customersRes.ok) {
+    customersRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/customers?due_Date=lt.${today}&select=id,name,email,amount,due_Date,status`,
+      { headers }
+    );
+  }
+
+  if (!customersRes.ok) {
+    throw new Error(
+      `Failed to fetch overdue rows from customers: ${customersRes.status} ${customersRes.statusText}`
+    );
+  }
+
+  const rows = (await customersRes.json()) as CustomerRow[];
+  return rows
+    .filter((row) => {
+      const status = `${row.status ?? ""}`.toLowerCase();
+      const paidByStatus = status === "paid" || status === "done";
+      const paidByFlag = row.is_paid === true;
+      return !paidByStatus && !paidByFlag;
+    })
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      amount: Number(row.amount ?? 0),
+      due_date: row.due_Date ?? row.due_date ?? today,
+    }));
 }
 
