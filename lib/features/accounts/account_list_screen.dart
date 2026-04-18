@@ -68,6 +68,20 @@ class _AccountListScreenState extends State<AccountListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Accounts'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.print),
+            tooltip: 'Print merged unique customers',
+            onPressed: () async {
+              try {
+                await _repo.printMergedUniqueCustomers();
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Merged unique customers printed to console')));
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to print merged data: $e')));
+              }
+            },
+          )
+        ],
       ),
       body: FutureBuilder<List<Account>>(
         future: _futureAccounts,
@@ -117,4 +131,3 @@ class _AccountListScreenState extends State<AccountListScreen> {
     );
   }
 }
-

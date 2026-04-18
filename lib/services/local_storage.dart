@@ -17,3 +17,24 @@ class LocalStorage {
   }
 }
 
+// Top-level wrappers so callers using a library alias (e.g. import '.../local_storage.dart' as LocalStorage; LocalStorage.getString(...))
+// continue to work. Also add small debug prints.
+String? getString(String key) {
+  final v = LocalStorage.getString(key);
+  print('[LocalStorage] getString key=$key -> ${v == null ? 'null' : 'value(len=${v.length})'}');
+
+  //print all the customers data locally and stored in supabase
+
+  return v;
+}
+
+Future<bool> setString(String key, String value) async {
+  print('[LocalStorage] setString key=$key value-len=${value.length}');
+  return LocalStorage.setString(key, value);
+}
+
+
+Future<bool> remove(String key) async {
+  print('[LocalStorage] remove key=$key');
+  return LocalStorage.remove(key);
+}
