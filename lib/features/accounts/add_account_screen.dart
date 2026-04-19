@@ -139,12 +139,22 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
         status: status,
       );
 
+      // Persist locally and ensure remote sync completes before closing
       if (widget.account == null) {
         await store.addAccount(acc);
       } else {
         await store.updateAccount(acc);
       }
-      // use go_router's pop
+
+      // Ensure sync with remote and reload local store so UI sees latest data
+      try {
+        await store.sync();
+      } catch (_) {
+        // swallow sync errors but still attempt reload so local data is shown
+      }
+      await store.load();
+
+      // close and signal success
       context.pop(true);
     } catch (e) {
       AccountsSnackBar.showError(context, 'Error: ${e.toString()}');

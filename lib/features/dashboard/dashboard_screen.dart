@@ -28,12 +28,38 @@ class _DashboardState extends State<Dashboard>
    double _animFrom = 0.0;
    bool _loading = true;
 
+  AccountStore? _storeRef;
+
    @override
    void initState() {
      super.initState();
      // initial data is loaded by the global store in main(), but we still ensure local filters apply
      WidgetsBinding.instance.addPostFrameCallback((_) => _applyFilters());
    }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final store = AccountStoreProvider.of(context);
+    if (_storeRef != store) {
+      _storeRef?.removeListener(_onStoreUpdated);
+      _storeRef = store;
+      _storeRef?.addListener(_onStoreUpdated);
+      // apply immediately for current store state
+      _applyFilters();
+    }
+  }
+
+  void _onStoreUpdated() {
+    // apply filters when store changes (e.g. after sync/load)
+    if (mounted) _applyFilters();
+  }
+
+  @override
+  void dispose() {
+    _storeRef?.removeListener(_onStoreUpdated);
+    super.dispose();
+  }
 
    Future<void> _refresh() async {
     final store = AccountStoreProvider.of(context);
