@@ -296,7 +296,7 @@ class _DashboardState extends State<Dashboard>
            try {
              await store.deleteAccount(a.id);
              _applyFilters();
-             AccountsSnackBar.showSuccess(context, 'Account deleted');
+             AccountsSnackBar.showSuccess(context, 'Successfully deleted');
            } catch (e) {
              AccountsSnackBar.showError(context, 'Delete failed: $e');
            }

@@ -741,7 +741,7 @@ Regards,''',
                        if (confirmed == true) {
                          try {
                            await store.deleteAccount(a.id);
-                           AccountsSnackBar.showSuccess(context, 'Account deleted');
+                           AccountsSnackBar.showSuccess(context, 'Deleted successfullt');
                            if (mounted) Navigator.of(context).pop(true);
                          } catch (e) {
                            AccountsSnackBar.showError(context, 'Delete failed: $e');

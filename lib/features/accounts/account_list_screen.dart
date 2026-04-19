@@ -211,7 +211,7 @@ class _AccountListScreenState extends State<AccountListScreen>
 
     try {
       await store.deleteAccount(id);
-      _showSuccess('Account deleted');
+      _showSuccess('Successfully deleted');
       _reloadFromStore();
     } catch (e) {
       _showError(e.toString());
@@ -222,7 +222,7 @@ class _AccountListScreenState extends State<AccountListScreen>
     final res = await context.pushNamed<bool>('addAccount', extra: {'account': account, 'asBottomSheet': true});
     if (res == true && mounted) {
       await store.load();
-      _showSuccess(account == null ? 'Account added successfully' : 'Account updated successfully');
+      _showSuccess(account == null ? 'Added successfully' : 'Updated successfully');
     }
   }
 
@@ -291,7 +291,7 @@ class _AccountListScreenState extends State<AccountListScreen>
                 if (confirmed == true) {
                   try {
                     await store.deleteAccount(acc.id);
-                    _showSuccess('Account deleted');
+                    _showSuccess('Successfully deleted');
                     return true;
                   } catch (e) {
                     _showError('Delete failed: $e');

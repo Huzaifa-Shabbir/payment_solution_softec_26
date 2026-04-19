@@ -101,7 +101,7 @@ class _SplashScreenState extends State<SplashScreen>
                 "Stay on top of your payments",
                 style: TextStyle(
                   fontSize: 14,
-                  color: colors.primary_Text,
+                  color: Colors.white,
                 ),
               ),
 
