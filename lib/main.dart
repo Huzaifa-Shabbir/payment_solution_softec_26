@@ -12,6 +12,7 @@ import 'features/accounts/account_model.dart';
 import 'features/core/Theme.dart';
 import 'features/setting/setting.dart';
 import 'core/utils/state_Management.dart';
+import 'features/reports/analytics_screen.dart';
 
 // single app-wide store instance (initialized in main before runApp)
 final AccountStore accountStore = AccountStore();
@@ -141,31 +142,6 @@ class MyApp extends StatelessWidget {
             themeMode: ThemeController.instance.themeMode,
           );
         },
-      ),
-    );
-  }
-}
-
-// Minimal local AnalyticsScreen fallback so main.dart compiles.
-// Replace this with your real AnalyticsScreen implementation or re-add a proper import later.
-class AnalyticsScreen extends StatelessWidget {
-  const AnalyticsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Analytics'),
-        backgroundColor: theme.colorScheme.surface,
-        foregroundColor: theme.colorScheme.onSurface,
-        elevation: 0,
-      ),
-      body: Center(
-        child: Text(
-          'Analytics',
-          style: theme.textTheme.headlineSmall,
-        ),
       ),
     );
   }

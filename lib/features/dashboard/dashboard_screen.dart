@@ -309,6 +309,10 @@ class _DashboardState extends State<Dashboard>
        await _refresh();
        return;
      }
+     if (idx == 2) {
+       await context.pushNamed('analytics');
+       return;
+     }
      if (idx == 3) {
        // open settings screen via named route
        await context.pushNamed('settings');
@@ -619,7 +623,7 @@ class _DashboardState extends State<Dashboard>
                IconButton(icon: Icon(Icons.grid_view, color: _selectedIndex == 0 ? colors.appbar_Color : Colors.grey), onPressed: () => _onNavTap(0)),
                IconButton(icon: Icon(Icons.people, color: _selectedIndex == 1 ? colors.appbar_Color : Colors.grey), onPressed: () => _onNavTap(1)),
                const SizedBox(width: 48),
-               IconButton(icon: Icon(Icons.history, color: _selectedIndex == 2 ? colors.appbar_Color : Colors.grey), onPressed: () => _onNavTap(2)),
+               IconButton(icon: Icon(Icons.analytics, color: _selectedIndex == 2 ? colors.appbar_Color : Colors.grey), onPressed: () => _onNavTap(2)),
                IconButton(icon: Icon(Icons.settings, color: _selectedIndex == 3 ? colors.appbar_Color : Colors.grey), onPressed: () => _onNavTap(3)),
              ],
            ),
