@@ -102,6 +102,26 @@ class MyApp extends StatelessWidget {
           path: '/settings',
           builder: (context, state) => const SettingsScreen(),
         ),
+        GoRoute(
+          name: 'analytics',
+          path: '/analytics',
+          pageBuilder: (context, state) {
+            return CustomTransitionPage(
+              key: state.pageKey,
+              child: const AnalyticsScreen(),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                final tween = Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero);
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: animation.drive(tween),
+                    child: child,
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ],
     );
 
@@ -121,6 +141,31 @@ class MyApp extends StatelessWidget {
             themeMode: ThemeController.instance.themeMode,
           );
         },
+      ),
+    );
+  }
+}
+
+// Minimal local AnalyticsScreen fallback so main.dart compiles.
+// Replace this with your real AnalyticsScreen implementation or re-add a proper import later.
+class AnalyticsScreen extends StatelessWidget {
+  const AnalyticsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Analytics'),
+        backgroundColor: theme.colorScheme.surface,
+        foregroundColor: theme.colorScheme.onSurface,
+        elevation: 0,
+      ),
+      body: Center(
+        child: Text(
+          'Analytics',
+          style: theme.textTheme.headlineSmall,
+        ),
       ),
     );
   }
