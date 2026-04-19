@@ -7,6 +7,7 @@ import 'account_repository_helpers.dart';
 import '../core/Theme.dart';
 import '../../core/utils/state_Management.dart';
 import 'accounts_snackbar.dart';
+import 'package:intl/intl.dart';
 
 
 class AccountListScreen extends StatefulWidget {
@@ -141,54 +142,154 @@ class _AccountListScreenState extends State<AccountListScreen>
    @override
    Widget build(BuildContext context) {
      final colors = AppColors();
-    final store = AccountStoreProvider.of(context);
-    // use a sorted copy for display: overdue -> pending -> others
-    final accounts = _sortedForDisplay(store.accounts);
+     final store = AccountStoreProvider.of(context);
+     // show only paid creditors on this screen
+     final paidOnly = store.accounts.where((a) => a.isPaid).toList();
+     final accounts = _sortedForDisplay(paidOnly);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Accounts'),
+        title: const Text('Paid Creditors'),
       ),
       body: store.loading
           ? const Center(child: CircularProgressIndicator())
           : accounts.isEmpty
-              ? const Center(child: Text('No accounts yet. Tap + to add one.'))
-              : ListView.builder(
-                  itemCount: accounts.length,
-                  itemBuilder: (context, index) {
-                    final acc = accounts[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      child: ListTile(
-                        title: Text(acc.name, style: Theme.of(context).textTheme.bodyLarge),
-                        subtitle: Text('${acc.email} • ${acc.phone}', style: Theme.of(context).textTheme.bodyMedium),
-                        trailing: acc.isPaid
-                            ? const Padding(
-                                padding: EdgeInsets.only(right: 8.0),
-                                child: Icon(Icons.check_circle, color: Colors.green, size: 28),
-                              )
-                            : PopupMenuButton<String>(
-                                onSelected: (value) async {
-                                  if (value == 'edit') {
-                                    await _openAdd(acc);
-                                  } else if (value == 'delete') {
-                                    await _deleteAccount(acc.id);
-                                  } else if (value == 'details') {
-                                    await context.pushNamed('accountDetail', extra: acc);
-                                  }
-                                },
-                                itemBuilder: (_) => [
-                                  const PopupMenuItem(value: 'details', child: Text('Details')),
-                                  const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                                  const PopupMenuItem(value: 'delete', child: Text('Delete')),
+              ? const Center(child: Text('No paid creditors yet. Tap + to add one.'))
+              : RefreshIndicator(
+                  onRefresh: () async => _reloadFromStore(),
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                    itemCount: accounts.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final acc = accounts[index];
+                      final overdue = !acc.isPaid && acc.dueDate.isBefore(DateTime.now());
+                      final initials = acc.name.isNotEmpty
+                          ? acc.name.trim().split(' ').map((s) => s.isEmpty ? '' : s[0]).take(2).join()
+                          : '?';
+
+                      return Dismissible(
+                        key: ValueKey(acc.id),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade700,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.delete, color: Colors.white),
+                        ),
+                        confirmDismiss: (_) async {
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              title: const Text('Delete account'),
+                              content: Text('Delete "${acc.name}"? This action cannot be undone.'),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                                TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete', style: TextStyle(color: Colors.red))),
+                              ],
+                            ),
+                          );
+                          if (confirmed == true) {
+                            try {
+                              await store.deleteAccount(acc.id);
+                              _showSuccess('Account deleted');
+                              return true;
+                            } catch (e) {
+                              _showError('Delete failed: $e');
+                              return false;
+                            }
+                          }
+                          return false;
+                        },
+                        child: Card(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 2,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => context.pushNamed('accountDetail', extra: acc),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 26,
+                                    backgroundColor: overdue ? Colors.red.shade50 : Colors.blue.shade50,
+                                    child: Text(initials.toUpperCase(), style: TextStyle(color: overdue ? Colors.red.shade700 : Colors.blue.shade700, fontWeight: FontWeight.w700)),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(child: Text(acc.name, style: Theme.of(context).textTheme.titleMedium)),
+                                            const SizedBox(width: 8),
+                                            if (acc.isPaid)
+                                              Chip(
+                                                label: const Text('Paid', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                                                backgroundColor: Colors.green.shade700,
+                                              )
+                                            else
+                                              Chip(
+                                                label: Text(
+                                                  acc.dueDate.isBefore(DateTime.now()) ? 'Overdue' : 'Pending',
+                                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                                                ),
+                                                backgroundColor: acc.dueDate.isBefore(DateTime.now()) ? Colors.red.shade600 : Colors.orange.shade700,
+                                              ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          acc.email.isNotEmpty ? acc.email : acc.phone,
+                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text('\$${NumberFormat('#,##0.00').format(acc.amount)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                      const SizedBox(height: 6),
+                                      Text(DateFormat.yMMMd().format(acc.dueDate), style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                                      const SizedBox(height: 6),
+                                      PopupMenuButton<String>(
+                                        onSelected: (value) async {
+                                          if (value == 'edit') {
+                                            await _openAdd(acc);
+                                            await store.load();
+                                          } else if (value == 'delete') {
+                                            await _deleteAccount(acc.id);
+                                          } else if (value == 'details') {
+                                            await context.pushNamed('accountDetail', extra: acc);
+                                          }
+                                        },
+                                        itemBuilder: (_) => [
+                                          const PopupMenuItem(value: 'details', child: Text('Details')),
+                                          if (!acc.isPaid) const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                                          const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                                        ],
+                                      ),
+                                    ],
+                                  )
                                 ],
                               ),
-                        onTap: () => context.pushNamed('accountDetail', extra: acc),
-                      ),
-                    );
-                  },
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openAdd(),
+        backgroundColor: colors.appbar_Color,
         child: const Icon(Icons.add),
       ),
     );

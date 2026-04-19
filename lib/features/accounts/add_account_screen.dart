@@ -111,6 +111,7 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
         return;
       }
       final id = widget.account?.id ?? DateTime.now().millisecondsSinceEpoch.toString();
+      // Ensure new accounts are unpaid and marked as 'Pending' by default.
       final acc = Account(
         id: id,
         name: _nameCtrl.text.trim(),
@@ -120,8 +121,11 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
         dueDate: _dueDate!,
         // preserve existing lastContactDate when editing, otherwise set to now
         lastContactDate: widget.account?.lastContactDate ?? DateTime.now(),
+        // explicit defaults: if editing, keep existing values; if creating, set unpaid + pending
         isPaid: widget.account?.isPaid ?? false,
+        status: widget.account?.status ?? 'Pending',
       );
+
       if (widget.account == null) {
         await store.addAccount(acc);
       } else {
