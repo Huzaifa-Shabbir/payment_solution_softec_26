@@ -178,7 +178,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 bg: cs.primary,
                 icon: Icons.schedule,
                 title: 'Total Pending',
-                subtitle: 'Amount due (not overdue)',
+                subtitle: 'Amount due',
                 value: _currencyFmt.format(data.totalPending),
               ),
             ),
