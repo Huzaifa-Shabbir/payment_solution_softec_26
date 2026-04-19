@@ -40,6 +40,7 @@ class _DashboardState extends State<Dashboard>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+
     final store = AccountStoreProvider.of(context);
     if (_storeRef != store) {
       _storeRef?.removeListener(_onStoreUpdated);
@@ -150,10 +151,8 @@ class _DashboardState extends State<Dashboard>
      return AccountTile(
        account: a,
        onTap: () async {
-         // open the redesigned follow-up / account detail screen
-         final res = await Navigator.of(context).push<bool>(
-           MaterialPageRoute(builder: (_) => AccountFollowUpScreen(account: a)),
-         );
+         // open the redesigned follow-up / account detail screen via GoRouter (keep navigator consistent)
+         final res = await context.pushNamed<bool>('accountDetail', extra: a);
          if (res == true) {
            await store.load();
            _applyFilters();
@@ -172,7 +171,7 @@ class _DashboardState extends State<Dashboard>
          // Styled confirmation dialog (single dialog)
          final confirmed = await showDialog<bool>(
            context: context,
-           builder: (_) => Dialog(
+           builder: (dialogCtx) => Dialog(
              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
              backgroundColor: Colors.white,
              child: Padding(
@@ -197,7 +196,7 @@ class _DashboardState extends State<Dashboard>
                      children: [
                        Expanded(
                          child: OutlinedButton(
-                           onPressed: () => Navigator.pop(context, false),
+                           onPressed: () => Navigator.pop(dialogCtx, false),
                            style: OutlinedButton.styleFrom(
                              padding: const EdgeInsets.symmetric(vertical: 12),
                              side: BorderSide(color: Colors.grey.shade300),
@@ -209,7 +208,7 @@ class _DashboardState extends State<Dashboard>
                        const SizedBox(width: 12),
                        Expanded(
                          child: ElevatedButton(
-                           onPressed: () => Navigator.pop(context, true),
+                           onPressed: () => Navigator.pop(dialogCtx, true),
                            style: ElevatedButton.styleFrom(
                              backgroundColor: Colors.green.shade700,
                              padding: const EdgeInsets.symmetric(vertical: 12),
@@ -242,7 +241,7 @@ class _DashboardState extends State<Dashboard>
          // Styled delete confirmation (single dialog)
          final confirmed = await showDialog<bool>(
            context: context,
-           builder: (_) => Dialog(
+           builder: (dialogCtx) => Dialog(
              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
              backgroundColor: Colors.white,
              child: Padding(
@@ -264,7 +263,7 @@ class _DashboardState extends State<Dashboard>
                      children: [
                        Expanded(
                          child: OutlinedButton(
-                           onPressed: () => Navigator.pop(context, false),
+                           onPressed: () => Navigator.pop(dialogCtx, false),
                            style: OutlinedButton.styleFrom(
                              padding: const EdgeInsets.symmetric(vertical: 12),
                              side: BorderSide(color: Colors.grey.shade300),
@@ -276,7 +275,7 @@ class _DashboardState extends State<Dashboard>
                        const SizedBox(width: 12),
                        Expanded(
                          child: ElevatedButton(
-                           onPressed: () => Navigator.pop(context, true),
+                           onPressed: () => Navigator.pop(dialogCtx, true),
                            style: ElevatedButton.styleFrom(
                              backgroundColor: Colors.red.shade700,
                              padding: const EdgeInsets.symmetric(vertical: 12),
@@ -570,8 +569,8 @@ class _DashboardState extends State<Dashboard>
 
            const SizedBox(height: 16),
 
+           // Use Wrap so buttons wrap to next line on small widths and avoid overflow
            Container(
-
                child:Row(
                  children: [
                    Expanded(child: _filterButton('All', Colors.blue, 'All')),
@@ -582,6 +581,7 @@ class _DashboardState extends State<Dashboard>
                  ],
                )
            ),
+
          ],
        ),
      );

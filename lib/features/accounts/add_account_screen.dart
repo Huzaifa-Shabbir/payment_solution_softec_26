@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'accounts_snackbar.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'account_model.dart';
+import 'package:flutter/scheduler.dart';
 class AddAccountScreen extends StatefulWidget {
   final Account? account;
   final bool asBottomSheet;
@@ -562,7 +563,7 @@ Regards,''',
     final store = AccountStoreProvider.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => Dialog(
+      builder: (dialogCtx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         backgroundColor: Colors.white,
         child: Padding(
@@ -587,7 +588,7 @@ Regards,''',
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context, false),
+                      onPressed: () => Navigator.pop(dialogCtx, false),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         side: BorderSide(color: Colors.grey.shade300),
@@ -599,7 +600,7 @@ Regards,''',
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context, true),
+                      onPressed: () => Navigator.pop(dialogCtx, true),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green.shade700,
                         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -621,9 +622,28 @@ Regards,''',
       try {
         final updated = account.copyWith(isPaid: true, status: 'Done');
         await store.updateAccount(updated);
+        // attempt to sync so remote/local stay consistent
+        try {
+          await store.sync();
+        } catch (_) {}
+        await store.load();
+
         AccountsSnackBar.showSuccess(context, 'Marked as done');
-        // bubble up to trigger parent refresh if needed
-        Navigator.of(context).pop(true);
+
+        // schedule pop after frame to avoid navigator locked/dispose assertions
+        SchedulerBinding.instance.addPostFrameCallback((_) async {
+          if (!mounted) return;
+          // prefer Navigator pop if there is a local route to pop
+          final nav = Navigator.maybeOf(context);
+          if (nav != null && nav.canPop()) {
+            nav.pop(true);
+            return;
+          }
+          // fallback to GoRouter pop (defensive) - guard with mounted
+          try {
+            if (mounted) context.pop(true);
+          } catch (_) {}
+        });
       } catch (e) {
         AccountsSnackBar.showError(context, 'Failed to mark done: $e');
       }
@@ -660,16 +680,14 @@ Regards,''',
                     if (v == 'edit') {
                       if (a.isPaid) return;
                       final res = await context.pushNamed<bool>('addAccount', extra: {'asBottomSheet': true, 'account': a});
-                      if (res == true) {
-                        Navigator.of(context).pop(true);
-                      }
+                      if (res == true && mounted) Navigator.of(context).pop(true);
                     } else if (v == 'done') {
                       if (a.isPaid) return;
                       await _confirmAndMarkDone(a);
                     } else if (v == 'delete') {
-                      final confirmed = await showDialog<bool>(
+                       final confirmed = await showDialog<bool>(
                         context: context,
-                        builder: (_) => Dialog(
+                        builder: (dialogCtx) => Dialog(
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           backgroundColor: Colors.white,
                           child: Padding(
@@ -691,7 +709,7 @@ Regards,''',
                                   children: [
                                     Expanded(
                                       child: OutlinedButton(
-                                        onPressed: () => Navigator.pop(context, false),
+                                        onPressed: () => Navigator.pop(dialogCtx, false),
                                         style: OutlinedButton.styleFrom(
                                           padding: const EdgeInsets.symmetric(vertical: 12),
                                           side: BorderSide(color: Colors.grey.shade300),
@@ -703,7 +721,7 @@ Regards,''',
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: ElevatedButton(
-                                        onPressed: () => Navigator.pop(context, true),
+                                        onPressed: () => Navigator.pop(dialogCtx, true),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: Colors.red.shade700,
                                           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -720,17 +738,17 @@ Regards,''',
                           ),
                         ),
                       );
-                      if (confirmed == true) {
-                        try {
-                          await store.deleteAccount(a.id);
-                          AccountsSnackBar.showSuccess(context, 'Account deleted');
-                          Navigator.of(context).pop(true);
-                        } catch (e) {
-                          AccountsSnackBar.showError(context, 'Delete failed: $e');
-                        }
-                      }
-                    }
-                  },
+                       if (confirmed == true) {
+                         try {
+                           await store.deleteAccount(a.id);
+                           AccountsSnackBar.showSuccess(context, 'Account deleted');
+                           if (mounted) Navigator.of(context).pop(true);
+                         } catch (e) {
+                           AccountsSnackBar.showError(context, 'Delete failed: $e');
+                         }
+                       }
+                     }
+                   },
                   itemBuilder: (context) {
                     final items = <PopupMenuEntry<String>>[];
                     if (!a.isPaid) {
