@@ -798,6 +798,7 @@ Regards,''',
               subtitle: Text(a.isPaid ? 'Paid' : 'Unpaid', style: TextStyle(color: a.isPaid ? Colors.green : Colors.red)),
             ),
             const Divider(height: 32),
+
             // Redesigned action buttons
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

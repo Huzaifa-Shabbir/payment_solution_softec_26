@@ -13,6 +13,7 @@ import 'features/core/Theme.dart';
 import 'features/setting/setting.dart';
 import 'core/utils/state_Management.dart';
 import 'features/reports/analytics_screen.dart';
+import 'package:flutter/services.dart';
 
 // single app-wide store instance (initialized in main before runApp)
 final AccountStore accountStore = AccountStore();
@@ -61,41 +62,81 @@ class MyApp extends StatelessWidget {
             }
 
             final colors = AppColors();
-            // use state.uri.path as GoRouterState.location may not be available in this version
             final selected = _locToIndex(state.uri.path);
 
             return Scaffold(
               // the active page will render its own AppBar / body (child may contain its own Scaffold)
               body: child,
               floatingActionButton: FloatingActionButton(
-                onPressed: () => GoRouter.of(context).pushNamed('addAccount', extra: {'asBottomSheet': true, 'account': null}),
+                onPressed: () {
+                  // Prevent multiple sheet openings - check if already on add route
+                  if (GoRouter.of(context).state?.name != 'addAccount') {
+                    GoRouter.of(context).pushNamed('addAccount', extra: {'asBottomSheet': true, 'account': null});
+                  }
+                },
                 child: const Icon(Icons.add, size: 28),
               ),
               floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
               bottomNavigationBar: BottomAppBar(
                 shape: const CircularNotchedRectangle(),
                 notchMargin: 8,
+                elevation: 8,
                 child: SizedBox(
-                  height: 62,
+                  height: 40,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      IconButton(
-                        icon: Icon(Icons.grid_view, color: selected == 0 ? colors.appbar_Color : Colors.grey),
-                        onPressed: () => GoRouter.of(context).goNamed('dashboard'),
+                      _buildBottomNavItem(
+                        context: context,
+                        icon: Icons.grid_view,
+                        isSelected: selected == 0,
+                        onTap: () {
+                          if (selected != 0) {
+                            HapticFeedback.lightImpact();
+                            GoRouter.of(context).goNamed('dashboard');
+                          }
+                        },
+                        colors: colors,
                       ),
-                      IconButton(
-                        icon: Icon(Icons.people, color: selected == 1 ? colors.appbar_Color : Colors.grey),
-                        onPressed: () => GoRouter.of(context).goNamed('accounts'),
+                      _buildBottomNavItem(
+                        context: context,
+                        icon: Icons.people,
+                        isSelected: selected == 1,
+                        onTap: () {
+                          if (selected != 1) {
+                            HapticFeedback.lightImpact();
+                            GoRouter.of(context).goNamed('accounts');
+                          }
+                        },
+                        colors: colors,
                       ),
-                      const SizedBox(width: 48),
-                      IconButton(
-                        icon: Icon(Icons.analytics, color: selected == 2 ? colors.appbar_Color : Colors.grey),
-                        onPressed: () => GoRouter.of(context).goNamed('analytics'),
+
+                      // cleaner FAB spacing
+                      const SizedBox(width: 56),
+
+                      _buildBottomNavItem(
+                        context: context,
+                        icon: Icons.analytics,
+                        isSelected: selected == 2,
+                        onTap: () {
+                          if (selected != 2) {
+                            HapticFeedback.lightImpact();
+                            GoRouter.of(context).goNamed('analytics');
+                          }
+                        },
+                        colors: colors,
                       ),
-                      IconButton(
-                        icon: Icon(Icons.settings, color: selected == 3 ? colors.appbar_Color : Colors.grey),
-                        onPressed: () => GoRouter.of(context).goNamed('settings'),
+                      _buildBottomNavItem(
+                        context: context,
+                        icon: Icons.settings,
+                        isSelected: selected == 3,
+                        onTap: () {
+                          if (selected != 3) {
+                            HapticFeedback.lightImpact();
+                            GoRouter.of(context).goNamed('settings');
+                          }
+                        },
+                        colors: colors,
                       ),
                     ],
                   ),
@@ -130,6 +171,7 @@ class MyApp extends StatelessWidget {
                 Account? account;
                 bool asBottom = false;
                 if (extra is Map) {
+
                   account = extra['account'] as Account?;
                   asBottom = extra['asBottomSheet'] == true;
                 } else if (extra is Account) {
@@ -191,6 +233,38 @@ class MyApp extends StatelessWidget {
         routerConfig: router,
         theme: AppTheme.light(),
       ),
+    );
+  }
+
+  /// Build a redesigned bottom nav item with highlight effect
+  Widget _buildBottomNavItem({
+    required BuildContext context,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required AppColors colors,
+  }) {
+    return Expanded(
+        child: Center( // 👈 keeps it centered instead of stretched
+          child: GestureDetector(
+            onTap: onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.all(8), // 👈 tighter box
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? colors.appbar_Color.withOpacity(0.08)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(10), // 👈 smaller radius
+              ),
+              child: Icon(
+                icon,
+                color: isSelected ? colors.appbar_Color : Colors.grey,
+                size: isSelected ? 26 : 24,
+              ),
+            ),
+          ),
+        ),
     );
   }
 }
