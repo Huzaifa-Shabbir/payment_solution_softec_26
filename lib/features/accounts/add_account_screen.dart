@@ -115,9 +115,15 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
       // determine overdue, isPaid and status based on due date / payment state
       final now = DateTime.now();
       final isOverdue = _dueDate!.isBefore(now);
-      // if overdue, it cannot be marked as paid
+      final isNew = widget.account == null;
+
+      // Rules:
+      // - When creating a new account, never mark it as paid (isPaid = false).
+      // - If an account is overdue it cannot be marked as paid (isPaid = false).
+      // - For edits, preserve existing paid state unless the due date becomes overdue.
       final existingPaid = widget.account?.isPaid ?? false;
-      final isPaid = existingPaid && !isOverdue;
+      final isPaid = isNew ? false : (existingPaid && !isOverdue);
+
       final status = isPaid ? 'Done' : (isOverdue ? 'Overdue' : 'Pending');
 
       final acc = Account(

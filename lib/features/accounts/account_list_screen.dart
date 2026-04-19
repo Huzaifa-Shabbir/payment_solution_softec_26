@@ -149,12 +149,12 @@ class _AccountListScreenState extends State<AccountListScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Paid Creditors'),
+        title: const Text('Paid Credits'),
       ),
       body: store.loading
           ? const Center(child: CircularProgressIndicator())
           : accounts.isEmpty
-              ? const Center(child: Text('No paid creditors yet. Tap + to add one.'))
+              ? const Center(child: Text('No Paid Creditors yet.'))
               : RefreshIndicator(
                   onRefresh: () async => _reloadFromStore(),
                   child: ListView.separated(
