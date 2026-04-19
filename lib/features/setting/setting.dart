@@ -14,10 +14,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   static const _kInitial = 'note_initial';
   static const _kFinal = 'note_final';
 
-  // defaults
-  static const _dFollow = 'Follow: Hi {name}, following up on the outstanding amount. Please let us know a convenient time to pay.';
-  static const _dInitial = 'Initial Contact: Hello {name}, this is a friendly reminder regarding your invoice.';
-  static const _dFinal = 'Final Notice: Final notice. Immediate payment is required to avoid further action.';
+  // defaults (match the templates used in AccountFollowUp screen)
+  static const _dInitial = '''Hi {name},
+
+I’m reaching out regarding the outstanding balance of {amount} for {client}. Please let us know if there are any issues preventing payment or if you’d like to discuss a payment plan.
+
+Best regards,''';
+  static const _dFollow = '''Hi {name},
+
+Just a friendly reminder that the payment of {amount} for {client} is still outstanding. We’d appreciate your prompt attention to this matter.
+
+Thank you,''';
+  static const _dFinal = '''Hi {name},
+
+This is a final notice regarding the outstanding balance of {amount} for {client}. The invoice is now overdue. Please contact us immediately to resolve this.
+
+Regards,''';
 
   String _follow = _dFollow;
   String _initial = _dInitial;
@@ -36,34 +48,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadNotes() async {
     try {
-      // NOTE:
-      // In some project versions LocalStorage.getString(...) returns void (or is not usable as a return value)
-      // which causes compile errors. To keep this file compiling across variations of the LocalStorage API,
-      // we avoid using the return value here and fall back to defaults.
-      //
-      // If your LocalStorage actually provides a Future<String?> getString(String key),
-      // replace the body below with:
-      //   final v1 = await LocalStorage.getString(_kFollow);
-      //   final v2 = await LocalStorage.getString(_kInitial);
-      //   final v3 = await LocalStorage.getString(_kFinal);
-      //   setState(() {
-      //     _follow = (v1?.isNotEmpty == true) ? v1! : _dFollow;
-      //     _initial = (v2?.isNotEmpty == true) ? v2! : _dInitial;
-      //     _final = (v3?.isNotEmpty == true) ? v3! : _dFinal;
-      //   });
-      //
-      // For now, safely initialize with stored defaults so the app compiles.
-    } catch (_) {
-      // ignore read errors
-    }
+      // LocalStorage/getString is synchronous in this project wrapper and returns String?
+      final v1 = getString(_kFollow);
+      final v2 = getString(_kInitial);
+      final v3 = getString(_kFinal);
 
-    // Apply defaults (safe fallback). Saved values will still be written by _saveNote.
-    if (mounted) {
-      setState(() {
-        _follow = _dFollow;
-        _initial = _dInitial;
-        _final = _dFinal;
-      });
+      if (mounted) {
+        setState(() {
+          _follow = (v1?.isNotEmpty == true) ? v1! : _dFollow;
+          _initial = (v2?.isNotEmpty == true) ? v2! : _dInitial;
+          _final = (v3?.isNotEmpty == true) ? v3! : _dFinal;
+        });
+      }
+    } catch (_) {
+      // ignore read errors, keep defaults
+      if (mounted) {
+        setState(() {
+          _follow = _dFollow;
+          _initial = _dInitial;
+          _final = _dFinal;
+        });
+      }
     }
   }
 
@@ -80,7 +85,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final controller = TextEditingController(text: current);
     final res = await showDialog<bool>(
       context: ctx,
-      builder: (_) => AlertDialog(
+      // use the dialog builder context so Navigator.pop targets the dialog only
+      builder: (dialogCtx) => AlertDialog(
         title: Text('Edit: $title'),
         content: SizedBox(
           width: double.maxFinite,
@@ -89,13 +95,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             maxLines: null,
             autofocus: true,
             decoration: const InputDecoration(
-              hintText: 'Enter note text. Use {name} to interpolate customer name.',
+              hintText: 'Enter note text. Use {name}, {client}, {amount}, {overdue} placeholders as needed.',
             ),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Save')),
+          TextButton(onPressed: () => Navigator.of(dialogCtx).pop(false), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.of(dialogCtx).pop(true), child: const Text('Save')),
         ],
       ),
     );
