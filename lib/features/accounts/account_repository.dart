@@ -69,7 +69,7 @@ class AccountRepository {
     } on AccountValidationException {
       rethrow;
     } catch (e) {
-      throw Exception('Failed to add account: ${_humanizeError(e)}');
+      throw Exception('Failed to add Creditor: ${_humanizeError(e)}');
     }
   }
 

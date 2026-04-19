@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class AppColors {
   final Color splash_Screen = Colors.teal;
   final Color appbar_Color = Colors.deepPurple;
-  final Color Background = const Color(0xFFF5F5DC);
+  final Color Background = Colors.white;
   final Color primary_Text = const Color.fromRGBO(47, 58, 54, 1);
   final Color secondary_Text = Colors.white;
   final Color Border = const Color(0xFF525E75);

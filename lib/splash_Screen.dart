@@ -15,6 +15,7 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
+  final AppColors colors = AppColors(); // Instance of your color palette
 
   @override
   void initState() {
@@ -48,16 +49,18 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    final colors = AppColors();
-    final textTheme = Theme.of(context).textTheme;
     return Scaffold(
-      backgroundColor: colors.splash_Screen,
-      body: Center(
+      backgroundColor: colors.Background, // Use background color
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: AppColors().splash_Screen, // Splash screen base color
         child: FadeTransition(
           opacity: _fadeAnimation,
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // Logo
               Container(
                 height: 120,
                 width: 120,
@@ -66,27 +69,44 @@ class _SplashScreenState extends State<SplashScreen>
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: colors.Border.withOpacity(0.4),
-                      blurRadius: 12,
-                      spreadRadius: 2,
+                      color: colors.Border.withOpacity(0.5),
+                      blurRadius: 15,
+                      spreadRadius: 3,
                     )
                   ],
                 ),
                 child: Icon(
                   Icons.account_balance_wallet_rounded,
                   size: 60,
-                  color: colors.appbar_Color,
+                  color: colors.primary_Text, // Accent from your palette
                 ),
               ),
-              const SizedBox(height: 20),
-              Text("SmartPay",
-                  style: textTheme.titleLarge
-                      ?.copyWith(color: colors.secondary_Text)),
-              const SizedBox(height: 8),
-              Text("Stay on top of your payments",
-                  style: textTheme.bodyMedium?.copyWith(
-                      color: colors.secondary_Text.withOpacity(0.9))),
-              const SizedBox(height: 26),
+
+              const SizedBox(height: 25),
+
+              // App Name
+              Text(
+                "SmartPay",
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: colors.secondary_Text,
+                  letterSpacing: 1.2,
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              Text(
+                "Stay on top of your payments",
+                style: TextStyle(
+                  fontSize: 14,
+                  color: colors.primary_Text,
+                ),
+              ),
+
+              const SizedBox(height: 40),
+
               CircularProgressIndicator(
                 color: colors.secondary_Text,
                 strokeWidth: 2,

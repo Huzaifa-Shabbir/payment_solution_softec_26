@@ -5,13 +5,19 @@ import 'account_repository.dart';
 import 'account_repository_helpers.dart';
 import '../core/Theme.dart';
 import '../../core/utils/state_Management.dart';
-
+import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'accounts_snackbar.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'account_model.dart';
 class AddAccountScreen extends StatefulWidget {
   final Account? account;
   final bool asBottomSheet;
 
   const AddAccountScreen({
     super.key,
+
     this.account,
     this.asBottomSheet = false,
   });
@@ -27,7 +33,6 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
   final _emailCtrl = TextEditingController();
   final _amountCtrl = TextEditingController();
   DateTime? _dueDate;
-  DateTime? _lastContact;
   final AccountRepository _repo = AccountRepository();
 
   bool _saving = false;
@@ -42,10 +47,8 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
       _emailCtrl.text = a.email;
       _amountCtrl.text = a.amount.toString();
       _dueDate = a.dueDate;
-      _lastContact = a.lastContactDate;
     } else {
       _dueDate = DateTime.now();
-      _lastContact = DateTime.now();
     }
   }
 
@@ -59,7 +62,7 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
   }
 
   void _showMessage(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    AccountsSnackBar.showError(context, msg);
   }
 
   String? _validateName(String? value) {
@@ -94,12 +97,8 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_dueDate == null || _lastContact == null) {
-      _showMessage('Please select both due date and last contact date.');
-      return;
-    }
-    if (_dueDate!.isBefore(_lastContact!)) {
-      _showMessage('Due date cannot be before last contact date.');
+    if (_dueDate == null) {
+      _showMessage('Please select a due date.');
       return;
     }
 
@@ -119,7 +118,8 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
         email: _emailCtrl.text.trim(),
         amount: amount,
         dueDate: _dueDate!,
-        lastContactDate: _lastContact!,
+        // preserve existing lastContactDate when editing, otherwise set to now
+        lastContactDate: widget.account?.lastContactDate ?? DateTime.now(),
         isPaid: widget.account?.isPaid ?? false,
       );
       if (widget.account == null) {
@@ -130,7 +130,7 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
       // use go_router's pop
       context.pop(true);
     } catch (e) {
-      _showMessage('Error: ${e.toString()}');
+      AccountsSnackBar.showError(context, 'Error: ${e.toString()}');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -146,21 +146,21 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
           decoration: const InputDecoration(labelText: 'Name'),
           validator: _validateName,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         TextFormField(
           controller: _phoneCtrl,
           decoration: const InputDecoration(labelText: 'Phone'),
           keyboardType: TextInputType.phone,
           validator: _validatePhone,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         TextFormField(
           controller: _emailCtrl,
           decoration: const InputDecoration(labelText: 'Email'),
           keyboardType: TextInputType.emailAddress,
           validator: _validateEmail,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         TextFormField(
           controller: _amountCtrl,
           decoration: const InputDecoration(labelText: 'Amount'),
@@ -177,21 +177,9 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
             onPressed: () => _pickDate(context, _dueDate, (d) => setState(() => _dueDate = d)),
           ),
         ),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Last Contact'),
-          subtitle: Text(_lastContact?.toLocal().toString().split(' ').first ?? ''),
-          trailing: IconButton(
-            icon: const Icon(Icons.calendar_today),
-            onPressed: () => _pickDate(context, _lastContact, (d) => setState(() => _lastContact = d)),
-          ),
-        ),
+
         const SizedBox(height: 12),
-        const Text(
-          'Status will be computed automatically (Pending/Overdue). Use the dashboard to mark Done (paid).',
-          style: TextStyle(fontSize: 12, color: Colors.grey),
-        ),
-        const SizedBox(height: 16),
+
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
@@ -230,7 +218,7 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
       double sheetHeight;
 
       //Can change the buttomsheet height from here
-      sheetHeight = screenHeight * 0.67;
+      sheetHeight = screenHeight * 0.68;
 
       return Align(
         alignment: Alignment.bottomCenter,
@@ -239,35 +227,60 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
           width: double.infinity,
           child: Material(
             color: Theme.of(context).scaffoldBackgroundColor,
-            elevation: 8,
+            elevation: 12,
             clipBehavior: Clip.antiAlias,
             shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
             ),
             child: SafeArea(
               top: false,
               child: Padding(
-                padding: EdgeInsets.only(left: 14, right: 14, top: 8, bottom: MediaQuery.of(context).viewInsets.bottom + 12),
+                padding: EdgeInsets.only(left: 16, right: 16, top: 8, bottom: MediaQuery.of(context).viewInsets.bottom + 12),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // redesigned drag handle and header to match app vibe
                     Container(
-                      width: 36,
-                      height: 3,
-                      margin: const EdgeInsets.only(bottom: 8),
+                      width: 44,
+                      height: 5,
+                      margin: const EdgeInsets.only(bottom: 10),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade400,
-                        borderRadius: BorderRadius.circular(2),
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(4),
                       ),
                     ),
                     Row(
                       children: [
-                        Text(isEdit ? 'Edit Account' : 'Add Account', style: Theme.of(context).textTheme.titleLarge),
+                        Column(
+
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 8),
+                            Text(isEdit ? 'Edit Creditor' : 'Add Creditor',
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 20, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 4),
+                            Text(
+                              isEdit ? 'Update Creditor details' : 'Create a new Creditor',
+                              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                        ),
                         const Spacer(),
-                        IconButton(onPressed: () => context.pop(), icon: const Icon(Icons.close)),
+                        // colored close button that fits the app style
+                        Container(
+                          decoration: BoxDecoration(
+                            color: colors.appbar_Color.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: IconButton(
+                            onPressed: () => context.pop(),
+                            icon: Icon(Icons.close, color: colors.appbar_Color),
+                          ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Expanded(
                       child: SingleChildScrollView(
                         child: Form(key: _formKey, child: _buildFormFields()),
@@ -283,7 +296,7 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text(isEdit ? 'Edit Account' : 'Add Account')),
+      appBar: AppBar(title: Text(isEdit ? 'Edit Creditor' : 'Add Creditor')),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Form(key: _formKey, child: ListView(children: [_buildFormFields()])),
@@ -291,3 +304,606 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
     );
   }
 }
+
+// New / updated: Account detail / Follow-Up Actions screen (redesigned)
+class AccountFollowUpScreen extends StatefulWidget {
+  final Account account;
+  const AccountFollowUpScreen({super.key, required this.account});
+
+  @override
+  State<AccountFollowUpScreen> createState() => _AccountFollowUpScreenState();
+}
+
+class _AccountFollowUpScreenState extends State<AccountFollowUpScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  late TextEditingController _draftCtrl;
+  int _selectedIndex = 0;
+  bool _isEditing = false;
+  DateTime? _scheduledDateTime;
+
+  final List<String> _templates = [
+    // Initial Contact
+    '''Hi {name},
+
+I’m reaching out regarding the outstanding balance of {amount} for {client}. Please let us know if there are any issues preventing payment or if you’d like to discuss a payment plan.
+
+Best regards,''',
+    // Follow-Up Reminder
+    '''Hi {name},
+
+Just a friendly reminder that the payment of {amount} for {client} is still outstanding. We’d appreciate your prompt attention to this matter.
+
+Thank you,''',
+    // Final Notice
+    '''Hi {name},
+
+This is a final notice regarding the outstanding balance of {amount} for {client}. The invoice is now overdue. Please contact us immediately to resolve this.
+
+Regards,''',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: _templates.length, vsync: this);
+    _tabController.addListener(_onTabChanged);
+    _draftCtrl = TextEditingController(text: _buildTemplateText(0));
+  }
+
+  @override
+  void dispose() {
+    _tabController.removeListener(_onTabChanged);
+    _tabController.dispose();
+    _draftCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onTabChanged() {
+    if (!_tabController.indexIsChanging) {
+      setState(() {
+        _selectedIndex = _tabController.index;
+        if (!_isEditing) {
+          _draftCtrl.text = _buildTemplateText(_selectedIndex);
+        }
+      });
+    }
+  }
+
+  String _formatAmount(double v) => NumberFormat('#,##0.00').format(v);
+
+  String _buildTemplateText(int idx) {
+    final a = widget.account;
+    final client = a.email.isNotEmpty ? a.email.split('@').first : (a.phone.isNotEmpty ? a.phone : a.name);
+    final name = a.name;
+    final amount = '\$${_formatAmount(a.amount)}';
+    final daysOverdue = a.dueDate.isBefore(DateTime.now()) ? DateTime.now().difference(a.dueDate).inDays : 0;
+    final overdueText = daysOverdue > 0 ? '$daysOverdue days overdue' : 'Due ${DateFormat.yMMMd().format(a.dueDate)}';
+    return _templates[idx]
+        .replaceAll('{name}', name)
+        .replaceAll('{client}', client)
+        .replaceAll('{amount}', amount)
+        .replaceAll('{overdue}', overdueText);
+  }
+
+  void _toggleEdit() {
+    setState(() {
+      _isEditing = !_isEditing;
+      if (!_isEditing) {
+        // on stop editing, if user cleared, refill default template for selected tab
+        if (_draftCtrl.text.trim().isEmpty) _draftCtrl.text = _buildTemplateText(_selectedIndex);
+      }
+    });
+  }
+
+  void _copyDraft() {
+    Clipboard.setData(ClipboardData(text: _draftCtrl.text));
+    AccountsSnackBar.showSuccess(context, 'Message copied');
+  }
+
+  Future<void> _sendMessage() async {
+    try {
+      // placeholder integration
+      await Future.delayed(const Duration(milliseconds: 600));
+      AccountsSnackBar.showSuccess(context, 'Message sent');
+    } catch (e) {
+      AccountsSnackBar.showError(context, 'Send failed: $e');
+    }
+  }
+
+  Future<void> _pickSchedule() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().add(const Duration(days: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (date == null) return;
+    final time = await showTimePicker(context: context, initialTime: const TimeOfDay(hour: 10, minute: 0));
+    if (time == null) return;
+    setState(() {
+      _scheduledDateTime = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    });
+    AccountsSnackBar.showSuccess(context, 'Follow-up scheduled: ${DateFormat.yMMMd().add_jm().format(_scheduledDateTime!)}');
+  }
+
+  // helper: open phone dialer or show snackbar if unavailable
+  Future<void> _launchPhone(String? phone) async {
+    final p = phone?.trim() ?? '';
+    if (p.isEmpty) {
+      AccountsSnackBar.showError(context, 'No phone number available');
+      return;
+    }
+    final uri = Uri(scheme: 'tel', path: p);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        AccountsSnackBar.showError(context, 'Cannot open dialer');
+      }
+    } catch (e) {
+      AccountsSnackBar.showError(context, 'Failed to open dialer: $e');
+    }
+  }
+
+  // helper: open mail client or show snackbar if unavailable
+  Future<void> _launchEmail(String? email) async {
+    final e = email?.trim() ?? '';
+    if (e.isEmpty) {
+      AccountsSnackBar.showError(context, 'No email address available');
+      return;
+    }
+    final uri = Uri(scheme: 'mailto', path: e);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        AccountsSnackBar.showError(context, 'Cannot open email client');
+      }
+    } catch (err) {
+      AccountsSnackBar.showError(context, 'Failed to open email client: $err');
+    }
+  }
+
+  Future<void> _openWhatsApp(String? phone, String message) async {
+    final pRaw = phone?.trim() ?? '';
+    final digits = pRaw.replaceAll(RegExp(r'\D+'), '');
+    if (digits.isEmpty) {
+      AccountsSnackBar.showError(context, 'No phone number available for WhatsApp');
+      return;
+    }
+    final encoded = Uri.encodeComponent(message);
+    final uriScheme = Uri.parse('whatsapp://send?phone=$digits&text=$encoded');
+    final uriWeb = Uri.parse('https://wa.me/$digits?text=$encoded');
+
+    try {
+      if (await canLaunchUrl(uriScheme)) {
+        await launchUrl(uriScheme);
+      } else if (await canLaunchUrl(uriWeb)) {
+        await launchUrl(uriWeb, mode: LaunchMode.externalApplication);
+      } else {
+        AccountsSnackBar.showError(context, 'Cannot open WhatsApp');
+      }
+    } catch (e) {
+      AccountsSnackBar.showError(context, 'Failed to open WhatsApp: $e');
+    }
+  }
+
+  String _safeString(String? v) => (v == null || v.isEmpty) ? '-' : v;
+
+  Widget _iconButton({required IconData icon, required Color color, required String label, required VoidCallback onTap}) {
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+
+              children: [
+
+
+                CircleAvatar(radius: 20, backgroundColor: color.withOpacity(0.12), child: Icon(icon, color: color, size: 20)),
+                const SizedBox(height: 8),
+                Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+        ),
+
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final a = widget.account;
+    final store = AccountStoreProvider.of(context);
+    final name = a.name;
+    final subtitle = a.email.isNotEmpty ? '${a.name} – ${a.email}' : '${a.name} – ${a.phone}';
+    final amount = _formatAmount(a.amount);
+    final now = DateTime.now();
+    final overdue = a.dueDate.isBefore(now);
+    final days = overdue ? now.difference(a.dueDate).inDays : a.dueDate.difference(now).inDays;
+    final overdueLabel = overdue ? '$days days overdue' : 'Due in $days days';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Creditor Detail'),
+        automaticallyImplyLeading: true,
+        actions: [
+          // If already paid show check, otherwise show three-dot styled menu
+          a.isPaid
+              ? const Padding(
+                  padding: EdgeInsets.only(right: 12.0),
+                  child: Icon(Icons.check_circle, color: Colors.green, size: 28),
+                )
+              : PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert, color: Colors.black),
+                  color: Colors.white,
+                  elevation: 6,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: BorderSide(color: Colors.black.withOpacity(0.06), width: 1),
+                  ),
+                  onSelected: (v) async {
+                    if (v == 'edit') {
+                      final res = await context.pushNamed<bool>('addAccount', extra: {'asBottomSheet': true, 'account': a});
+                      if (res == true) {
+                        // bubble up to trigger parent refresh if needed
+                        Navigator.of(context).pop(true);
+                      }
+                    } else if (v == 'done') {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (_) => Dialog(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          backgroundColor: Colors.white,
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(Icons.check_circle, color: Colors.green.shade700, size: 36),
+                                ),
+                                const SizedBox(height: 16),
+                                Text('Mark as Paid?', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 10),
+                                Text('Do you want to mark\n"${a.name}" as paid?', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
+                                const SizedBox(height: 24),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton(
+                                        onPressed: () => Navigator.pop(context, false),
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(vertical: 12),
+                                          side: BorderSide(color: Colors.grey.shade300),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        ),
+                                        child: const Text('Cancel'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        onPressed: () => Navigator.pop(context, true),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.green.shade700,
+                                          padding: const EdgeInsets.symmetric(vertical: 12),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                          elevation: 3,
+                                        ),
+                                        child: const Text('Mark Done'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                      if (confirmed == true) {
+                        try {
+                          await store.markDone(a);
+                          AccountsSnackBar.showSuccess(context, 'Marked as done');
+                          Navigator.of(context).pop(true);
+                        } catch (e) {
+                          AccountsSnackBar.showError(context, 'Failed to mark done: $e');
+                        }
+                      }
+                    } else if (v == 'delete') {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (_) => Dialog(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          backgroundColor: Colors.white,
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), shape: BoxShape.circle),
+                                  child: Icon(Icons.delete_outline, color: Colors.red.shade700, size: 36),
+                                ),
+                                const SizedBox(height: 16),
+                                Text('Delete account', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+                                const SizedBox(height: 10),
+                                Text('Are you sure you want to delete "${a.name}"? This action cannot be undone.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
+                                const SizedBox(height: 24),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton(
+                                        onPressed: () => Navigator.pop(context, false),
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(vertical: 12),
+                                          side: BorderSide(color: Colors.grey.shade300),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        ),
+                                        child: const Text('Cancel'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        onPressed: () => Navigator.pop(context, true),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.red.shade700,
+                                          padding: const EdgeInsets.symmetric(vertical: 12),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                          elevation: 3,
+                                        ),
+                                        child: const Text('Delete'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                      if (confirmed == true) {
+                        try {
+                          await store.deleteAccount(a.id);
+                          AccountsSnackBar.showSuccess(context, 'Account deleted');
+                          Navigator.of(context).pop(true);
+                        } catch (e) {
+                          AccountsSnackBar.showError(context, 'Delete failed: $e');
+                        }
+                      }
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'done',
+                      child: Row(children: [Icon(Icons.check, color: Colors.green.shade700), const SizedBox(width: 10), Text('Mark as Done', style: TextStyle(color: Colors.green.shade700))]),
+                    ),
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: Row(children: [Icon(Icons.edit, color: Colors.blueAccent), const SizedBox(width: 10), Text('Edit', style: TextStyle(color: Colors.blueAccent))]),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Row(children: [Icon(Icons.delete_outline, color: Colors.red.shade700), const SizedBox(width: 10), Text('Delete', style: TextStyle(color: Colors.red.shade700))]),
+                    ),
+                  ],
+                ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: ListView(
+          children: [
+            ListTile(title: const Text('Name'), subtitle: Text(a.name, style: Theme.of(context).textTheme.bodyLarge)),
+            const Divider(),
+            ListTile(title: const Text('Phone'), subtitle: Text(_safeString(a.phone), style: Theme.of(context).textTheme.bodyLarge)),
+            const Divider(),
+            ListTile(title: const Text('Email'), subtitle: Text(_safeString(a.email), style: Theme.of(context).textTheme.bodyLarge)),
+            const Divider(),
+            ListTile(
+              title: const Text('Amount'),
+              subtitle: Text('\$${_formatAmount(a.amount)}', style: Theme.of(context).textTheme.headlineSmall),
+            ),
+            const Divider(),
+            ListTile(
+              title: const Text('Due Date'),
+              subtitle: Text(DateFormat.yMMMd().format(a.dueDate), style: Theme.of(context).textTheme.bodyLarge),
+            ),
+            const Divider(),
+            ListTile(
+              title: const Text('Last Contact Date'),
+              subtitle: Text(DateFormat.yMMMd().format(a.lastContactDate), style: Theme.of(context).textTheme.bodyLarge),
+            ),
+            const Divider(),
+            ListTile(
+              title: const Text('Status'),
+              subtitle: Text(a.isPaid ? 'Paid' : 'Unpaid', style: TextStyle(color: a.isPaid ? Colors.green : Colors.red)),
+            ),
+            const Divider(height: 32),
+            // Redesigned action buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _launchPhone(a.phone),
+                    icon: const Icon(Icons.phone, size: 18),
+                    label: const Text('Call'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      backgroundColor: Colors.green.shade700,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _launchEmail(a.email),
+                    icon: const Icon(Icons.email_outlined, size: 18),
+                    label: const Text('Email'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      backgroundColor: Colors.blueAccent,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _openWhatsApp(a.phone, 'Hello ${a.name},'),
+                    icon: const Icon(Icons.message, size: 18),
+                    label: const Text('WhatsApp'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      backgroundColor: Colors.green,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            // Next follow-up scheduling
+            Text('Suggested next follow-up:', style: TextStyle(color: Colors.grey.shade700)),
+            const SizedBox(height: 6),
+            Text(
+              _scheduledDateTime != null
+                  ? DateFormat.yMMMMd().add_jm().format(_scheduledDateTime!)
+                  : '${DateFormat.yMMMMd().format(DateTime.now().add(const Duration(days: 1)))} at 10:00 AM',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            // Message templates (tabs)
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey.withOpacity(0.12)),
+              ),
+              child: Column(
+                children: [
+                  TabBar(
+                    controller: _tabController,
+                    indicator: UnderlineTabIndicator(
+                      borderSide: BorderSide(width: 3.0, color: Colors.blue.shade700),
+                      insets: const EdgeInsets.symmetric(horizontal: 16),
+                    ),
+                    labelColor: Colors.blue.shade700,
+                    unselectedLabelColor: Colors.grey.shade600,
+                    labelStyle: const TextStyle(fontWeight: FontWeight.w800),
+                    tabs: const [
+                      Tab(text: 'Initial Contact'),
+                      Tab(text: 'Follow-Up Reminder'),
+                      Tab(text: 'Final Notice'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            // Message draft area with edit icon
+            Row(
+              children: [
+                Expanded(child: Text('Message draft', style: Theme.of(context).textTheme.titleSmall)),
+                IconButton(
+                  tooltip: _isEditing ? 'Finish editing' : 'Edit draft',
+                  icon: Icon(_isEditing ? Icons.check_rounded : Icons.edit_rounded, color: Colors.grey.shade700),
+                  onPressed: _toggleEdit,
+                )
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _draftCtrl,
+              maxLines: 8,
+              readOnly: !_isEditing,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _copyDraft,
+                  icon: const Icon(Icons.copy, color: Colors.grey),
+                  label: const Text('Copy'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => _openWhatsApp(a.phone, _draftCtrl.text),
+                    child: const Text('Send Message'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      backgroundColor: Colors.blue,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            // Contact information card
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Contact Information', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.phone, color: Colors.green),
+                      title: Text(a.phone.isNotEmpty ? a.phone : '-'),
+                      onTap: () => _launchPhone(a.phone),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.email_outlined, color: Colors.blue),
+                      title: Text(a.email.isNotEmpty ? a.email : '-'),
+                      onTap: () => _launchEmail(a.email),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 36),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

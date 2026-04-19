@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import '../accounts/account_model.dart';
+import '../accounts/add_account_screen.dart'; // <-- add this import to use AccountFollowUpScreen
 
 import '../core/Theme.dart';
 import '../../core/utils/state_Management.dart';
+import 'account_tile.dart'; // <-- added import
+import '../accounts/accounts_snackbar.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -40,9 +43,39 @@ class _DashboardState extends State<Dashboard>
 
    void _applyFilters() {
     final store = AccountStoreProvider.of(context);
-    final tmp = store.filteredAccounts(_search, _filter);
+    final now = DateTime.now();
+    // start from all accounts in store
+    List<Account> accounts = List<Account>.from(store.accounts);
+
+    // apply search (name / email / phone)
+    final q = _search.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      accounts = accounts.where((a) {
+        return a.name.toLowerCase().contains(q) ||
+            a.email.toLowerCase().contains(q) ||
+            a.phone.toLowerCase().contains(q);
+      }).toList();
+    }
+
+    // apply filter tag
+    List<Account> result;
+    switch (_filter) {
+      case 'Overdue':
+        // not paid and dueDate before now
+        result = accounts.where((a) => !a.isPaid && a.dueDate.isBefore(now)).toList();
+        break;
+      case 'Pending':
+        // not paid and dueDate is today or in future
+        result = accounts.where((a) => !a.isPaid && !a.dueDate.isBefore(now)).toList();
+        break;
+      case 'All':
+      default:
+        result = accounts;
+        break;
+    }
+
     setState(() {
-      _filtered = tmp;
+      _filtered = result;
       _animFrom = _balance;
       _balance = store.balance;
       _loading = store.loading;
@@ -58,98 +91,161 @@ class _DashboardState extends State<Dashboard>
    }
 
    Widget _buildTile(Account a) {
-     final color = _colorForStatus(a.computedStatus);
-     final due = DateFormat.yMMMd().format(a.dueDate);
-
-     final statusLower = a.computedStatus.toLowerCase();
-     final cardBg = statusLower.contains('over')
-         ? Colors.red.shade50
-         : statusLower.contains('done')
-             ? Colors.green.shade50
-             : Theme.of(context).cardColor;
-
-     return Card(
-       color: cardBg,
-       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-       elevation: 1,
-       child: ListTile(
-         title: Text(a.name, style: Theme.of(context).textTheme.labelLarge),
-         subtitle: Text('${_fmt.format(a.amount)} • Due: $due', style: Theme.of(context).textTheme.bodyMedium),
-         trailing: a.isPaid
-             ? const Padding(
-                 padding: EdgeInsets.only(right: 8.0),
-                 child: Icon(Icons.check_circle, color: Colors.green, size: 28),
-               )
-             : PopupMenuButton<String>(
-                 icon: const Icon(Icons.more_vert),
-                 onSelected: (value) async {
-                   final store = AccountStoreProvider.of(context);
-                   if (value == 'edit') {
-                     final res = await context.pushNamed<bool>('addAccount', extra: a);
-                     if (res == true) {
-                       await store.load();
-                       _applyFilters();
-                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account saved')));
-                     }
-                   } else if (value == 'done') {
-                     final confirmed = await showDialog<bool>(
-                       context: context,
-                       builder: (_) => AlertDialog(
-                         title: const Text('Mark as done'),
-                         content: Text('Mark ${a.name} as paid/done?'),
-                         actions: [
-                           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-                           TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Mark Done')),
-                         ],
+     final store = AccountStoreProvider.of(context);
+     return AccountTile(
+       account: a,
+       onTap: () async {
+         // open the redesigned follow-up / account detail screen
+         final res = await Navigator.of(context).push<bool>(
+           MaterialPageRoute(builder: (_) => AccountFollowUpScreen(account: a)),
+         );
+         if (res == true) {
+           await store.load();
+           _applyFilters();
+         }
+       },
+       onEdit: () async {
+         // open add/edit as bottom sheet and pass the account for prefill
+         final res = await context.pushNamed<bool>('addAccount', extra: {'asBottomSheet': true, 'account': a});
+         if (res == true) {
+           await store.load();
+           _applyFilters();
+           AccountsSnackBar.showSuccess(context, 'Account saved');
+         }
+       },
+       onMarkDone: () async {
+         // Styled confirmation dialog (single dialog)
+         final confirmed = await showDialog<bool>(
+           context: context,
+           builder: (_) => Dialog(
+             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+             backgroundColor: Colors.white,
+             child: Padding(
+               padding: const EdgeInsets.all(20),
+               child: Column(
+                 mainAxisSize: MainAxisSize.min,
+                 children: [
+                   Container(
+                     padding: const EdgeInsets.all(16),
+                     decoration: BoxDecoration(
+                       color: Colors.green.withOpacity(0.1),
+                       shape: BoxShape.circle,
+                     ),
+                     child: Icon(Icons.check_circle, color: Colors.green.shade700, size: 36),
+                   ),
+                   const SizedBox(height: 16),
+                   Text('Mark as Paid?', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                   const SizedBox(height: 10),
+                   Text('Do you want to mark\n"${a.name}" as paid?', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
+                   const SizedBox(height: 24),
+                   Row(
+                     children: [
+                       Expanded(
+                         child: OutlinedButton(
+                           onPressed: () => Navigator.pop(context, false),
+                           style: OutlinedButton.styleFrom(
+                             padding: const EdgeInsets.symmetric(vertical: 12),
+                             side: BorderSide(color: Colors.grey.shade300),
+                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                           ),
+                           child: const Text('Cancel'),
+                         ),
                        ),
-                     );
-                     if (confirmed == true) {
-                       try {
-                         await store.markDone(a);
-                         _applyFilters();
-                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Marked as done')));
-                       } catch (e) {
-                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to mark done: $e')));
-                       }
-                     }
-                   } else if (value == 'delete') {
-                     final confirmed = await showDialog<bool>(
-                       context: context,
-                       builder: (_) => AlertDialog(
-                         title: const Text('Delete account'),
-                         content: Text('Are you sure you want to delete ${a.name}?'),
-                         actions: [
-                           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-                           TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
-                         ],
+                       const SizedBox(width: 12),
+                       Expanded(
+                         child: ElevatedButton(
+                           onPressed: () => Navigator.pop(context, true),
+                           style: ElevatedButton.styleFrom(
+                             backgroundColor: Colors.green.shade700,
+                             padding: const EdgeInsets.symmetric(vertical: 12),
+                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                             elevation: 3,
+                           ),
+                           child: const Text('Mark Done'),
+                         ),
                        ),
-                     );
-                     if (confirmed == true) {
-                       try {
-                         await store.deleteAccount(a.id);
-                         _applyFilters();
-                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account deleted')));
-                       } catch (e) {
-                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
-                       }
-                     }
-                   }
-                 },
-                 itemBuilder: (context) => const [
-                   PopupMenuItem(value: 'edit', child: Text('Edit')),
-                   PopupMenuItem(value: 'done', child: Text('Mark as Done')),
-                   PopupMenuItem(value: 'delete', child: Text('Delete')),
+                     ],
+                   ),
                  ],
                ),
-         onTap: () async {
-           final res = await context.pushNamed<bool>('accountDetail', extra: a);
-           if (res == true) {
-             final store = AccountStoreProvider.of(context);
-             await store.load();
+             ),
+           ),
+         );
+         if (confirmed == true) {
+           try {
+             await store.markDone(a);
              _applyFilters();
+             AccountsSnackBar.showSuccess(context, 'Marked as done');
+           } catch (e) {
+             AccountsSnackBar.showError(context, 'Failed to mark done: $e');
            }
-         },
-       ),
+         }
+       },
+       onDelete: () async {
+         // Styled delete confirmation (single dialog)
+         final confirmed = await showDialog<bool>(
+           context: context,
+           builder: (_) => Dialog(
+             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+             backgroundColor: Colors.white,
+             child: Padding(
+               padding: const EdgeInsets.all(20),
+               child: Column(
+                 mainAxisSize: MainAxisSize.min,
+                 children: [
+                   Container(
+                     padding: const EdgeInsets.all(16),
+                     decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), shape: BoxShape.circle),
+                     child: Icon(Icons.delete_outline, color: Colors.red.shade700, size: 36),
+                   ),
+                   const SizedBox(height: 16),
+                   Text('Delete account', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+                   const SizedBox(height: 10),
+                   Text('Are you sure you want to delete "${a.name}"? This action cannot be undone.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
+                   const SizedBox(height: 24),
+                   Row(
+                     children: [
+                       Expanded(
+                         child: OutlinedButton(
+                           onPressed: () => Navigator.pop(context, false),
+                           style: OutlinedButton.styleFrom(
+                             padding: const EdgeInsets.symmetric(vertical: 12),
+                             side: BorderSide(color: Colors.grey.shade300),
+                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                           ),
+                           child: const Text('Cancel'),
+                         ),
+                       ),
+                       const SizedBox(width: 12),
+                       Expanded(
+                         child: ElevatedButton(
+                           onPressed: () => Navigator.pop(context, true),
+                           style: ElevatedButton.styleFrom(
+                             backgroundColor: Colors.red.shade700,
+                             padding: const EdgeInsets.symmetric(vertical: 12),
+                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                             elevation: 3,
+                           ),
+                           child: const Text('Delete'),
+                         ),
+                       ),
+                     ],
+                   ),
+                 ],
+               ),
+             ),
+           ),
+         );
+         if (confirmed == true) {
+           try {
+             await store.deleteAccount(a.id);
+             _applyFilters();
+             AccountsSnackBar.showSuccess(context, 'Account deleted');
+           } catch (e) {
+             AccountsSnackBar.showError(context, 'Delete failed: $e');
+           }
+         }
+       },
      );
    }
 
@@ -173,7 +269,7 @@ class _DashboardState extends State<Dashboard>
 
    void _onAddPressed() async {
      // navigate to add screen using go_router and let AddAccountScreen render asBottomSheet
-     final res = await context.pushNamed<bool>('addAccount', extra: {'asBottomSheet': true});
+     final res = await context.pushNamed<bool>('addAccount', extra: {'asBottomSheet': true, 'account': null});
      if (res == true) {
       final store = AccountStoreProvider.of(context);
       await store.load();
@@ -196,6 +292,237 @@ class _DashboardState extends State<Dashboard>
      setState(() => _selectedIndex = idx);
    }
 
+   // Helper: format exact amount (no $ sign, no "k" abbreviation)
+   String _compactCurrency(double v) {
+     final fmtNoSymbol = NumberFormat('#,##0.00');
+     return fmtNoSymbol.format(v);
+   }
+   Widget _summaryCard({
+     required Color bg,
+     required Color iconColor,
+     required IconData icon,
+     required String title,
+     required String value,
+   }) {
+     return SizedBox(
+       width: 160, // ✅ fixed width avoids overflow chaos
+       child: Container(
+         padding: const EdgeInsets.all(12),
+         decoration: BoxDecoration(
+           color: bg,
+           borderRadius: BorderRadius.circular(12),
+         ),
+         child: Row(
+           children: [
+             Container(
+               decoration: BoxDecoration(
+                 color: iconColor.withOpacity(0.15),
+                 shape: BoxShape.circle,
+               ),
+               padding: const EdgeInsets.all(10),
+               child: Icon(icon, color: iconColor, size: 22),
+             ),
+             const SizedBox(width: 12),
+             Expanded(
+               child: Column(
+                 crossAxisAlignment: CrossAxisAlignment.start,
+                 children: [
+                   Text(title,
+                       style: const TextStyle(
+                           fontSize: 12, color: Colors.black54)),
+                   const SizedBox(height: 4),
+                   Text(value,
+                       style: const TextStyle(
+                           fontSize: 16, fontWeight: FontWeight.bold)),
+                 ],
+               ),
+             )
+           ],
+         ),
+       ),
+     );
+   }
+   Widget _filterButton(String key, Color dotColor, String label) {
+     final selected = _filter == key ||
+         (_filter == 'All' && key == 'All');
+
+     return InkWell(
+       onTap: () {
+         setState(() {
+           _filter = switch (key) {
+             'Overdue' => 'Overdue',
+             'Pending' => 'Pending',
+             _ => 'All',
+           };
+           _applyFilters();
+         });
+       },
+       borderRadius: BorderRadius.circular(8),
+       child: Container(
+         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+         margin: const EdgeInsets.only(right: 8),
+         decoration: BoxDecoration(
+           color: selected ? Colors.grey.withOpacity(0.12) : Colors.transparent,
+           borderRadius: BorderRadius.circular(8),
+           border: selected
+               ? Border.all(color: Colors.grey.withOpacity(0.2))
+               : null,
+         ),
+         child: Row(
+           mainAxisSize: MainAxisSize.min,
+           children: [
+             Container(
+               width: 10,
+               height: 10,
+               decoration: BoxDecoration(
+                   color: dotColor, shape: BoxShape.circle),
+             ),
+             const SizedBox(width: 8),
+             Text(label,
+                 style: const TextStyle(fontWeight: FontWeight.w600)),
+           ],
+         ),
+       ),
+     );
+   }
+   Widget _buildTopSummary() {
+     final store = AccountStoreProvider.of(context);
+     final now = DateTime.now();
+     final accounts = store.accounts;
+
+     final totalOverdue = accounts
+         .where((a) => !a.isPaid && a.dueDate.isBefore(now))
+         .fold<double>(0.0, (p, e) => p + e.amount);
+
+     Widget _filterButton(String key, Color dotColor, String label) {
+       final selected = (_filter == key) || (_filter == 'All' && key == 'All');
+
+       return GestureDetector(
+         onTap: () {
+           setState(() {
+             if (key == 'Overdue') _filter = 'Overdue';
+             else if (key == 'Pending') _filter = 'Pending';
+             else _filter = 'All';
+
+             _applyFilters();
+           });
+         },
+         child: Container(
+           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+           margin: const EdgeInsets.only(right: 10),
+           decoration: BoxDecoration(
+             color: selected ? Colors.grey.withOpacity(0.3) : Colors.grey.withOpacity(0.05),
+             borderRadius: BorderRadius.circular(15),
+           ),
+           child: Row(
+             children: [
+               Container(
+                 width: 10,
+                 height: 10,
+                 decoration: BoxDecoration(
+                   color: dotColor,
+                   shape: BoxShape.circle,
+                 ),
+               ),
+               const SizedBox(width: 8),
+               Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+             ],
+           ),
+         ),
+       );
+     }
+
+     return Padding(
+       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+       child: Column(
+         crossAxisAlignment: CrossAxisAlignment.start,
+         children: [
+           /// 🔥 BIG OVERDUE CARD
+           Container(
+             width: double.infinity,
+             padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 22),
+             decoration: BoxDecoration(
+               gradient: LinearGradient(
+                 colors: [
+                   Colors.blue.shade50,
+                   Colors.blue.shade100,
+                 ],
+                 begin: Alignment.topLeft,
+                 end: Alignment.bottomRight,
+               ),
+               borderRadius: BorderRadius.circular(24),
+               boxShadow: [
+                 BoxShadow(
+                   color: Colors.blue.withOpacity(0.15),
+                   blurRadius: 20,
+                   offset: const Offset(0, 8),
+                 ),
+               ],
+             ),
+             child: Row(
+               children: [
+                 /// ICON
+                 Container(
+                   padding: const EdgeInsets.all(16),
+                   decoration: BoxDecoration(
+                     color: Colors.blue.shade600.withOpacity(0.15),
+                     shape: BoxShape.circle,
+                   ),
+                   child: Icon(
+                     Icons.attach_money,
+                     color: Colors.blue.shade700,
+                     size: 32,
+                   ),
+                 ),
+
+                 const SizedBox(width: 16),
+
+                 /// TEXT
+                 Column(
+                   crossAxisAlignment: CrossAxisAlignment.start,
+                   children: [
+                     Text(
+                       'OVERDUE PAYMENTS',
+                       style: TextStyle(
+                         fontSize: 14,
+                         letterSpacing: 1.2,
+                         color: Colors.blueGrey.shade600,
+                         fontWeight: FontWeight.w600,
+                       ),
+                     ),
+                     const SizedBox(height: 8),
+                     Text(
+                       _compactCurrency(totalOverdue),
+                       style: TextStyle(
+                         fontSize: 32,
+                         fontWeight: FontWeight.bold,
+                         color: Colors.red,
+                       ),
+                     ),
+                   ],
+                 )
+               ],
+             ),
+           ),
+
+           const SizedBox(height: 16),
+
+           Container(
+
+               child:Row(
+                 children: [
+                   Expanded(child: _filterButton('All', Colors.blue, 'All')),
+                   const SizedBox(width: 8),
+                   Expanded(child: _filterButton('Overdue', Colors.red, 'Overdue')),
+                   const SizedBox(width: 8),
+                   Expanded(child: _filterButton('Pending', Colors.orange, 'Pending')),
+                 ],
+               )
+           ),
+         ],
+       ),
+     );
+   }
    @override
    Widget build(BuildContext context) {
      final colors = AppColors();
@@ -206,12 +533,46 @@ class _DashboardState extends State<Dashboard>
      return Scaffold(
        backgroundColor: colors.Background,
        appBar: AppBar(
-         title: Text("SmartPay", style: textTheme.titleLarge?.copyWith(color: colors.secondary_Text)),
          backgroundColor: colors.appbar_Color,
+         elevation: 0,
+         titleSpacing: 0,
+         title: Row(
+           children: [
+             /// 🔥 ICON
+
+             const SizedBox(width: 14),
+             Container(
+               padding: const EdgeInsets.all(6),
+               decoration: BoxDecoration(
+                 color: Colors.white.withOpacity(0.15),
+                 borderRadius: BorderRadius.circular(10),
+               ),
+               child: const Icon(
+                 Icons.account_balance_wallet,
+                 color: Colors.white,
+                 size: 22,
+               ),
+             ),
+
+             const SizedBox(width: 10),
+
+             /// 🔥 TEXT
+             const Text(
+               "SmartPay",
+               style: TextStyle(
+                 fontSize: 20,
+                 fontWeight: FontWeight.w700,
+                 letterSpacing: 0.5,
+                 // 👇 if using Google Fonts later, replace here
+                 // fontFamily: 'Poppins',
+               ),
+             ),
+           ],
+         ),
        ),
        body: Column(
          children: [
-           _buildBalanceCard(),
+           _buildTopSummary(),
            _buildSearchFilter(),
            _buildList(),
          ],
@@ -242,61 +603,23 @@ class _DashboardState extends State<Dashboard>
    }
 
    // re-use existing balance card & search/filter builders
-   Widget _buildBalanceCard() {
-     final colors = AppColors();
-     final color = _balance < 0 ? Colors.red.shade700 : Colors.green.shade700;
-     return Padding(
-       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-       child: Card(
-         elevation: 4,
-         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-         child: Padding(
-           padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-           child: Column(
-             children: [
-               Text('Total Balance', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
-               const SizedBox(height: 8),
-               TweenAnimationBuilder<double>(
-                 tween: Tween(begin: _animFrom, end: _balance),
-                 duration: const Duration(milliseconds: 600),
-                 builder: (context, value, _) {
-                   return Text(
-                     _fmt.format(value),
-                     style: TextStyle(fontSize: 34, fontWeight: FontWeight.bold, color: color),
-                     textAlign: TextAlign.center,
-                   );
-                 },
-               ),
-             ],
-           ),
-         ),
-       ),
-     );
-   }
-
    Widget _buildSearchFilter() {
      return Padding(
-       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
        child: Row(
          children: [
            Expanded(
              child: TextField(
-               decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search customers'),
+               decoration:  InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search customers', hintStyle: TextStyle(
+                 color: Colors.grey.shade600, // 👈 lighter
+               ),),
                onChanged: (v) {
                  _search = v;
                  _applyFilters();
                },
              ),
            ),
-           const SizedBox(width: 8),
-           DropdownButton<String>(
-             value: _filter,
-             items: const ['All', 'Overdue', 'Pending', 'Done'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-             onChanged: (v) {
-               _filter = v ?? 'All';
-               _applyFilters();
-             },
-           )
+
          ],
        ),
      );

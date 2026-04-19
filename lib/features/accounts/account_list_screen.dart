@@ -3,10 +3,10 @@ import 'package:go_router/go_router.dart';
 import 'account_model.dart';
 import 'account_repository.dart';
 import 'add_account_screen.dart';
-import 'add_detail_screen.dart';
 import 'account_repository_helpers.dart';
 import '../core/Theme.dart';
 import '../../core/utils/state_Management.dart';
+import 'accounts_snackbar.dart';
 
 
 class AccountListScreen extends StatefulWidget {
@@ -38,23 +38,66 @@ class _AccountListScreenState extends State<AccountListScreen>
    }
 
    void _showError(String message) {
-     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+     AccountsSnackBar.showError(context, message);
    }
 
    void _showSuccess(String message) {
-     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+     AccountsSnackBar.showSuccess(context, message);
    }
 
    Future<void> _deleteAccount(String id) async {
+     // Styled delete confirmation dialog
      final confirm = await showDialog<bool>(
        context: context,
-       builder: (_) => AlertDialog(
-         title: const Text('Delete account'),
-         content: const Text('Are you sure you want to delete this account?'),
-         actions: [
-           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-           TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
-         ],
+       builder: (_) => Dialog(
+         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+         backgroundColor: Colors.white,
+         child: Padding(
+           padding: const EdgeInsets.all(20),
+           child: Column(
+             mainAxisSize: MainAxisSize.min,
+             children: [
+               Container(
+                 padding: const EdgeInsets.all(16),
+                 decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), shape: BoxShape.circle),
+                 child: Icon(Icons.delete_outline, color: Colors.red.shade700, size: 36),
+               ),
+               const SizedBox(height: 16),
+               Text('Delete account', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+               const SizedBox(height: 10),
+               const Text('Are you sure you want to delete this account? This action cannot be undone.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+               const SizedBox(height: 24),
+               Row(
+                 children: [
+                   Expanded(
+                     child: OutlinedButton(
+                       onPressed: () => Navigator.pop(context, false),
+                       style: OutlinedButton.styleFrom(
+                         padding: const EdgeInsets.symmetric(vertical: 12),
+                         side: BorderSide(color: Colors.grey.shade300),
+                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                       ),
+                       child: const Text('Cancel'),
+                     ),
+                   ),
+                   const SizedBox(width: 12),
+                   Expanded(
+                     child: ElevatedButton(
+                       onPressed: () => Navigator.pop(context, true),
+                       style: ElevatedButton.styleFrom(
+                         backgroundColor: Colors.red.shade700,
+                         padding: const EdgeInsets.symmetric(vertical: 12),
+                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                         elevation: 3,
+                       ),
+                       child: const Text('Delete'),
+                     ),
+                   ),
+                 ],
+               ),
+             ],
+           ),
+         ),
        ),
      );
 

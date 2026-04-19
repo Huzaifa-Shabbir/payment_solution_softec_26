@@ -8,7 +8,6 @@ import 'features/accounts/account_repository.dart';
 import 'features/dashboard/dashboard_screen.dart';
 import 'features/accounts/account_list_screen.dart';
 import 'features/accounts/add_account_screen.dart';
-import 'features/accounts/add_detail_screen.dart';
 import 'features/accounts/account_model.dart';
 import 'features/core/Theme.dart';
 import 'features/setting/setting.dart';
@@ -65,7 +64,8 @@ class MyApp extends StatelessWidget {
           path: '/accounts/detail',
           builder: (context, state) {
             final extra = state.extra;
-            return AccountDetailScreen(account: extra as dynamic);
+            // show the follow-up / detail screen implemented in add_account_screen.dart
+            return AccountFollowUpScreen(account: extra as Account);
           },
         ),
         GoRoute(
@@ -84,11 +84,7 @@ class MyApp extends StatelessWidget {
             return CustomTransitionPage(
               key: state.pageKey,
               opaque: false,
-<<<<<<< Updated upstream
               barrierColor: Colors.black.withOpacity(0.15),
-=======
-              barrierColor: Colors.black.withValues(alpha: 0.15),
->>>>>>> Stashed changes
               barrierDismissible: true,
               maintainState: true,
               child: AddAccountScreen(account: account, asBottomSheet: asBottom),
