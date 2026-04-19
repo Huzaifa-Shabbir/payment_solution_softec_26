@@ -63,8 +63,14 @@ class _DashboardState extends State<Dashboard>
 
    void _applyFilters() {
     final store = AccountStoreProvider.of(context);
+    // If store is still loading, preserve the current filtered list to avoid wiping UI
+    if (store.loading) {
+      if (mounted) setState(() => _loading = true);
+      return;
+    }
+
     final now = DateTime.now();
-    // start from all accounts in store
+    // start from all accounts in store (defensive copy)
     List<Account> accounts = List<Account>.from(store.accounts);
 
     // apply search (name / email / phone)
@@ -81,11 +87,9 @@ class _DashboardState extends State<Dashboard>
     List<Account> result;
     switch (_filter) {
       case 'Overdue':
-        // not paid and dueDate before now
         result = accounts.where((a) => !a.isPaid && a.dueDate.isBefore(now)).toList();
         break;
       case 'Pending':
-        // not paid and dueDate is today or in future
         result = accounts.where((a) => !a.isPaid && !a.dueDate.isBefore(now)).toList();
         break;
       case 'All':
@@ -97,12 +101,14 @@ class _DashboardState extends State<Dashboard>
     // sort result: overdue -> pending -> others
     result = _sortAccounts(result);
 
-    setState(() {
-      _filtered = result;
-      _animFrom = _balance;
-      _balance = store.balance;
-      _loading = store.loading;
-    });
+    if (mounted) {
+      setState(() {
+        _filtered = result;
+        _animFrom = _balance;
+        _balance = store.balance;
+        _loading = store.loading;
+      });
+    }
    }
 
    Color _colorForStatus(String status) {
@@ -553,8 +559,8 @@ class _DashboardState extends State<Dashboard>
    Widget build(BuildContext context) {
      final colors = AppColors();
      final textTheme = Theme.of(context).textTheme;
-     // make sure filters reflect current store state
-     WidgetsBinding.instance.addPostFrameCallback((_) => _applyFilters());
+     // make sure filters reflect current store state (initial application is done in initState).
+     // Avoid running _applyFilters every build to prevent transient clearing of the list.
 
      return Scaffold(
        backgroundColor: colors.Background,
