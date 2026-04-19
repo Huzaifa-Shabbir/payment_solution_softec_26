@@ -41,7 +41,7 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       ),
-      colorScheme: ColorScheme.fromSeed(seedColor: c.appbar_Color, background: c.Background),
+      colorScheme: ColorScheme.fromSeed(seedColor: c.appbar_Color, surface: c.Background),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: c.Button,
@@ -50,70 +50,5 @@ class AppTheme {
         ),
       ),
     );
-  }
-
-  static ThemeData dark() {
-    final primary = Colors.deepPurple.shade200;
-    return ThemeData(
-      brightness: Brightness.dark,
-      primaryColor: primary,
-      scaffoldBackgroundColor: Colors.grey.shade900,
-      appBarTheme: AppBarTheme(
-        backgroundColor: Colors.grey.shade900,
-        foregroundColor: Colors.white,
-        elevation: 2,
-        titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-      ),
-      floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: primary,
-        elevation: 6,
-      ),
-      cardTheme: CardThemeData(
-        color: Colors.grey.shade800,
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      textTheme: const TextTheme(
-        titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-        bodyLarge: TextStyle(fontSize: 16, color: Colors.white),
-        bodyMedium: TextStyle(fontSize: 14, color: Colors.white70),
-        labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        filled: true,
-        fillColor: Colors.grey.shade800,
-      ),
-      colorScheme: ColorScheme.fromSeed(seedColor: primary, brightness: Brightness.dark),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: primary,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      ),
-    );
-  }
-}
-
-/// Simple ThemeController singleton to manage ThemeMode across the app.
-/// Call ThemeController.instance.setThemeMode(...) or toggleTheme() from UI.
-class ThemeController extends ChangeNotifier {
-  ThemeMode _mode = ThemeMode.system;
-  ThemeController._internal();
-  static final ThemeController instance = ThemeController._internal();
-
-  ThemeMode get themeMode => _mode;
-
-  void setThemeMode(ThemeMode mode) {
-    if (_mode == mode) return;
-    _mode = mode;
-    notifyListeners();
-  }
-
-  void toggleBetweenLightDark() {
-    if (_mode == ThemeMode.dark) _mode = ThemeMode.light;
-    else _mode = ThemeMode.dark;
-    notifyListeners();
   }
 }

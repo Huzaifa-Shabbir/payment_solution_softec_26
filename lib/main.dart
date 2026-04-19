@@ -181,22 +181,15 @@ class MyApp extends StatelessWidget {
       ],
     );
 
-    // Listen to ThemeController for theme changes across the app.
+    // Use only the light theme everywhere; remove dark theme / system theme switching.
     return AccountStoreProvider(
       store: accountStore,
-      child: AnimatedBuilder(
-        animation: ThemeController.instance,
-        builder: (context, _) {
-          return MaterialApp.router(
-            title: 'Payment Solution Softec',
-            debugShowCheckedModeBanner: false,
-            scaffoldMessengerKey: appScaffoldMessengerKey,
-            routerConfig: router,
-            theme: AppTheme.light(),
-            darkTheme: AppTheme.dark(),
-            themeMode: ThemeController.instance.themeMode,
-          );
-        },
+      child: MaterialApp.router(
+        title: 'Payment Solution Softec',
+        debugShowCheckedModeBanner: false,
+        scaffoldMessengerKey: appScaffoldMessengerKey,
+        routerConfig: router,
+        theme: AppTheme.light(),
       ),
     );
   }
