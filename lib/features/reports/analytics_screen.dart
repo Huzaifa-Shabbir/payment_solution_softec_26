@@ -262,6 +262,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final normMax = maxPendingOverdue > 0 ? maxPendingOverdue : 1.0;
 
     Widget _pendingOverdueChart() {
+      final scrollController = ScrollController();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        scrollController.jumpTo(scrollController.position.maxScrollExtent);
+      });
+
       return Card(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         elevation: 2,
@@ -276,6 +281,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 height: chartHeight,
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
+                  controller: scrollController,
                   child: SizedBox(
                     width: months.length * groupWidth,
                     child: Row(
@@ -331,6 +337,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     Widget _recoveryChart() {
       final maxRate = data.recoverySeries.isEmpty ? 1.0 : data.recoverySeries.reduce((a, b) => a > b ? a : b);
       final normRateMax = maxRate > 0 ? maxRate : 1.0;
+      final scrollController = ScrollController();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        scrollController.jumpTo(scrollController.position.maxScrollExtent);
+      });
+
       return Card(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         elevation: 2,
@@ -345,6 +356,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 height: chartHeight,
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
+                  controller: scrollController,
                   child: SizedBox(
                     width: months.length * groupWidth,
                     child: Row(
