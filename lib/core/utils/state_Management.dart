@@ -103,7 +103,12 @@ class AccountStore extends ChangeNotifier {
 
   /// Mark paid/done
   Future<void> markDone(Account a) async {
-    final updated = a.copyWith(isPaid: true, lastContactDate: DateTime.now());
+    // Ensure marking as done sets both the paid flag and the status consistently.
+    final updated = a.copyWith(
+      isPaid: true,
+      status: 'Done',
+      lastContactDate: DateTime.now(),
+    );
     await updateAccount(updated);
   }
 
@@ -177,4 +182,3 @@ class AccountStoreProvider extends InheritedNotifier<AccountStore> {
     return provider.notifier!;
   }
 }
-
