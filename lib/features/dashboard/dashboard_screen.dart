@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import '../accounts/account_model.dart';
-import '../accounts/add_account_screen.dart'; // <-- add this import to use AccountFollowUpScreen
+import '../accounts/add_account_screen.dart';
 
 import '../core/Theme.dart';
 import '../../core/utils/state_Management.dart';
@@ -433,8 +433,9 @@ class _DashboardState extends State<Dashboard>
            });
          },
          child: Container(
-           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-           margin: const EdgeInsets.only(right: 10),
+           // removed external right margin and reduced horizontal padding to avoid Row overflow
+           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+           margin: EdgeInsets.zero,
            decoration: BoxDecoration(
              color: selected ? Colors.grey.withOpacity(0.3) : Colors.grey.withOpacity(0.05),
              borderRadius: BorderRadius.circular(15),

@@ -446,45 +446,52 @@ Regards,''',
   }
 
   // helper: open mail client or show snackbar if unavailable
-  Future<void> _launchEmail(String? email) async {
+  Future<void> _launchEmail(String? email, [String? body]) async {
     final e = email?.trim() ?? '';
+
     if (e.isEmpty) {
       AccountsSnackBar.showError(context, 'No email address available');
       return;
     }
-    final uri = Uri(scheme: 'mailto', path: e);
+
+    final uri = Uri(
+      scheme: 'mailto',
+      path: e,
+      query: Uri.encodeFull(
+        'subject=Payment Reminder&body=${body ?? ''}',
+      ),
+    );
+
     try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        AccountsSnackBar.showError(context, 'Cannot open email client');
-      }
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (err) {
-      AccountsSnackBar.showError(context, 'Failed to open email client: $err');
+      AccountsSnackBar.showError(context, 'Failed to open email app');
     }
   }
 
   Future<void> _openWhatsApp(String? phone, String message) async {
-    final pRaw = phone?.trim() ?? '';
-    final digits = pRaw.replaceAll(RegExp(r'\D+'), '');
-    if (digits.isEmpty) {
-      AccountsSnackBar.showError(context, 'No phone number available for WhatsApp');
+    String p = phone?.trim() ?? '';
+
+    if (p.isEmpty) {
+      AccountsSnackBar.showError(context, 'No phone number available');
       return;
     }
-    final encoded = Uri.encodeComponent(message);
-    final uriScheme = Uri.parse('whatsapp://send?phone=$digits&text=$encoded');
-    final uriWeb = Uri.parse('https://wa.me/$digits?text=$encoded');
+
+    // 🔥 Convert to international format (Pakistan example)
+    if (p.startsWith('0')) {
+      p = '92${p.substring(1)}';
+    }
+
+    p = p.replaceAll(RegExp(r'\D+'), '');
+
+    final encodedMsg = Uri.encodeComponent(message);
+
+    final uri = Uri.parse("https://wa.me/$p?text=$encodedMsg");
 
     try {
-      if (await canLaunchUrl(uriScheme)) {
-        await launchUrl(uriScheme);
-      } else if (await canLaunchUrl(uriWeb)) {
-        await launchUrl(uriWeb, mode: LaunchMode.externalApplication);
-      } else {
-        AccountsSnackBar.showError(context, 'Cannot open WhatsApp');
-      }
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (e) {
-      AccountsSnackBar.showError(context, 'Failed to open WhatsApp: $e');
+      AccountsSnackBar.showError(context, 'Failed to open WhatsApp');
     }
   }
 
@@ -523,6 +530,79 @@ Regards,''',
     );
   }
 
+  // add helper to centralize mark-as-done logic
+  Future<void> _confirmAndMarkDone(Account account) async {
+    final store = AccountStoreProvider.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        backgroundColor: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.check_circle, color: Colors.green.shade700, size: 36),
+              ),
+              const SizedBox(height: 16),
+              Text('Mark as Paid?', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              Text('Do you want to mark\n"${account.name}" as paid?', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        side: BorderSide(color: Colors.grey.shade300),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green.shade700,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        elevation: 3,
+                      ),
+                      child: const Text('Mark Done'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final updated = account.copyWith(isPaid: true, status: 'Done');
+        await store.updateAccount(updated);
+        AccountsSnackBar.showSuccess(context, 'Marked as done');
+        // bubble up to trigger parent refresh if needed
+        Navigator.of(context).pop(true);
+      } catch (e) {
+        AccountsSnackBar.showError(context, 'Failed to mark done: $e');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final a = widget.account;
@@ -540,13 +620,7 @@ Regards,''',
         title: const Text('Creditor Detail'),
         automaticallyImplyLeading: true,
         actions: [
-          // If already paid show check, otherwise show three-dot styled menu
-          a.isPaid
-              ? const Padding(
-                  padding: EdgeInsets.only(right: 12.0),
-                  child: Icon(Icons.check_circle, color: Colors.green, size: 28),
-                )
-              : PopupMenuButton<String>(
+         PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert, color: Colors.black),
                   color: Colors.white,
                   elevation: 6,
@@ -555,80 +629,16 @@ Regards,''',
                     side: BorderSide(color: Colors.black.withOpacity(0.06), width: 1),
                   ),
                   onSelected: (v) async {
+                    // defensive guards: do not perform edit/done if already paid
                     if (v == 'edit') {
+                      if (a.isPaid) return;
                       final res = await context.pushNamed<bool>('addAccount', extra: {'asBottomSheet': true, 'account': a});
                       if (res == true) {
-                        // bubble up to trigger parent refresh if needed
                         Navigator.of(context).pop(true);
                       }
                     } else if (v == 'done') {
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (_) => Dialog(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          backgroundColor: Colors.white,
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.withOpacity(0.1),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(Icons.check_circle, color: Colors.green.shade700, size: 36),
-                                ),
-                                const SizedBox(height: 16),
-                                Text('Mark as Paid?', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 10),
-                                Text('Do you want to mark\n"${a.name}" as paid?', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
-                                const SizedBox(height: 24),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: OutlinedButton(
-                                        onPressed: () => Navigator.pop(context, false),
-                                        style: OutlinedButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(vertical: 12),
-                                          side: BorderSide(color: Colors.grey.shade300),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                        ),
-                                        child: const Text('Cancel'),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: ElevatedButton(
-                                        onPressed: () => Navigator.pop(context, true),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.green.shade700,
-                                          padding: const EdgeInsets.symmetric(vertical: 12),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                          elevation: 3,
-                                        ),
-                                        child: const Text('Mark Done'),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                      if (confirmed == true) {
-                        try {
-                          final updated = a.copyWith(isPaid: true, status: 'Done');
-                          await store.updateAccount(updated);
-                          AccountsSnackBar.showSuccess(context, 'Marked as done');
-                          Navigator.of(context).pop(true);
-                        } catch (e) {
-
-                          AccountsSnackBar.showError(context, 'Failed to mark done: $e');
-                        }
-                      }
+                      if (a.isPaid) return;
+                      await _confirmAndMarkDone(a);
                     } else if (v == 'delete') {
                       final confirmed = await showDialog<bool>(
                         context: context,
@@ -694,20 +704,30 @@ Regards,''',
                       }
                     }
                   },
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: 'done',
-                      child: Row(children: [Icon(Icons.check, color: Colors.green.shade700), const SizedBox(width: 10), Text('Mark as Done', style: TextStyle(color: Colors.green.shade700))]),
-                    ),
-                    PopupMenuItem(
-                      value: 'edit',
-                      child: Row(children: [Icon(Icons.edit, color: Colors.blueAccent), const SizedBox(width: 10), Text('Edit', style: TextStyle(color: Colors.blueAccent))]),
-                    ),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Row(children: [Icon(Icons.delete_outline, color: Colors.red.shade700), const SizedBox(width: 10), Text('Delete', style: TextStyle(color: Colors.red.shade700))]),
-                    ),
-                  ],
+                  itemBuilder: (context) {
+                    final items = <PopupMenuEntry<String>>[];
+                    if (!a.isPaid) {
+                      items.add(
+                        PopupMenuItem(
+                          value: 'done',
+                          child: Row(children: [Icon(Icons.check, color: Colors.green.shade700), const SizedBox(width: 10), Text('Mark as Done', style: TextStyle(color: Colors.green.shade700))]),
+                        ),
+                      );
+                      items.add(
+                        PopupMenuItem(
+                          value: 'edit',
+                          child: Row(children: [Icon(Icons.edit, color: Colors.blueAccent), const SizedBox(width: 10), Text('Edit', style: TextStyle(color: Colors.blueAccent))]),
+                        ),
+                      );
+                    }
+                    items.add(
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Row(children: [Icon(Icons.delete_outline, color: Colors.red.shade700), const SizedBox(width: 10), Text('Delete', style: TextStyle(color: Colors.red.shade700))]),
+                      ),
+                    );
+                    return items;
+                  },
                 ),
         ],
       ),
@@ -716,11 +736,8 @@ Regards,''',
         child: ListView(
           children: [
             ListTile(title: const Text('Name'), subtitle: Text(a.name, style: Theme.of(context).textTheme.bodyLarge)),
-            const Divider(),
-            ListTile(title: const Text('Phone'), subtitle: Text(_safeString(a.phone), style: Theme.of(context).textTheme.bodyLarge)),
-            const Divider(),
-            ListTile(title: const Text('Email'), subtitle: Text(_safeString(a.email), style: Theme.of(context).textTheme.bodyLarge)),
-            const Divider(),
+                const Divider(),
+
             ListTile(
               title: const Text('Amount'),
               subtitle: Text('\$${_formatAmount(a.amount)}', style: Theme.of(context).textTheme.headlineSmall),
@@ -730,12 +747,7 @@ Regards,''',
               title: const Text('Due Date'),
               subtitle: Text(DateFormat.yMMMd().format(a.dueDate), style: Theme.of(context).textTheme.bodyLarge),
             ),
-            const Divider(),
-            ListTile(
-              title: const Text('Last Contact Date'),
-              subtitle: Text(DateFormat.yMMMd().format(a.lastContactDate), style: Theme.of(context).textTheme.bodyLarge),
-            ),
-            const Divider(),
+            const Divider(height: 32),
             ListTile(
               title: const Text('Status'),
               subtitle: Text(a.isPaid ? 'Paid' : 'Unpaid', style: TextStyle(color: a.isPaid ? Colors.green : Colors.red)),
@@ -760,7 +772,7 @@ Regards,''',
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () => _launchEmail(a.email),
+                    onPressed: () => _launchEmail(a.email, _draftCtrl.text),
                     icon: const Icon(Icons.email_outlined, size: 18),
                     label: const Text('Email'),
                     style: ElevatedButton.styleFrom(
@@ -770,19 +782,7 @@ Regards,''',
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _openWhatsApp(a.phone, 'Hello ${a.name},'),
-                    icon: const Icon(Icons.message, size: 18),
-                    label: const Text('WhatsApp'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      backgroundColor: Colors.green,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                  ),
-                ),
+
               ],
             ),
             const SizedBox(height: 18),
@@ -895,7 +895,7 @@ Regards,''',
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.email_outlined, color: Colors.blue),
                       title: Text(a.email.isNotEmpty ? a.email : '-'),
-                      onTap: () => _launchEmail(a.email),
+                      onTap: () => _launchEmail(a.email, _draftCtrl.text),
                     ),
                   ],
                 ),
