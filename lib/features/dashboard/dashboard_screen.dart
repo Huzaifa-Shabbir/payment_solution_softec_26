@@ -621,7 +621,7 @@ class _DashboardState extends State<Dashboard>
 
              /// 🔥 TEXT
              const Text(
-               "SmartPay",
+               "DueDesk",
                style: TextStyle(
                  fontSize: 20,
                  fontWeight: FontWeight.w700,

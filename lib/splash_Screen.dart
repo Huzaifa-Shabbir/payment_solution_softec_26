@@ -86,7 +86,7 @@ class _SplashScreenState extends State<SplashScreen>
 
               // App Name
               Text(
-                "SmartPay",
+                "DueDesk",
                 style: TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
