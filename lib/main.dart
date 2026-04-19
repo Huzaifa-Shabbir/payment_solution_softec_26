@@ -50,78 +50,133 @@ class MyApp extends StatelessWidget {
           path: '/',
           builder: (context, state) => const SplashScreen(),
         ),
-        GoRoute(
-          name: 'dashboard',
-          path: '/dashboard',
-          builder: (context, state) => const Dashboard(),
-        ),
-        GoRoute(
-          name: 'accounts',
-          path: '/accounts',
-          builder: (context, state) => const AccountListScreen(),
-        ),
-        GoRoute(
-          name: 'accountDetail',
-          path: '/accounts/detail',
-          builder: (context, state) {
-            final extra = state.extra;
-            // show the follow-up / detail screen implemented in add_account_screen.dart
-            return AccountFollowUpScreen(account: extra as Account);
-          },
-        ),
-        GoRoute(
-          name: 'addAccount',
-          path: '/add',
-          pageBuilder: (context, state) {
-            final extra = state.extra;
-            Account? account;
-            bool asBottom = false;
-            if (extra is Map) {
-              account = extra['account'] as Account?;
-              asBottom = extra['asBottomSheet'] == true;
-            } else if (extra is Account) {
-              account = extra;
+        ShellRoute(
+          builder: (BuildContext context, GoRouterState state, Widget child) {
+            // map location -> selected index for icon coloring
+            int _locToIndex(String loc) {
+              if (loc.startsWith('/accounts')) return 1;
+              if (loc.startsWith('/analytics')) return 2;
+              if (loc.startsWith('/settings')) return 3;
+              return 0; // dashboard and default
             }
-            return CustomTransitionPage(
-              key: state.pageKey,
-              opaque: false,
-              barrierColor: Colors.black.withOpacity(0.15),
-              barrierDismissible: true,
-              maintainState: true,
-              child: AddAccountScreen(account: account, asBottomSheet: asBottom),
-              transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                const begin = Offset(0.0, 1.0);
-                const end = Offset.zero;
-                final tween = Tween(begin: begin, end: end).chain(CurveTween(curve: Curves.easeOut));
-                return SlideTransition(position: animation.drive(tween), child: child);
-              },
+
+            final colors = AppColors();
+            // use state.uri.path as GoRouterState.location may not be available in this version
+            final selected = _locToIndex(state.uri.path);
+
+            return Scaffold(
+              // the active page will render its own AppBar / body (child may contain its own Scaffold)
+              body: child,
+              floatingActionButton: FloatingActionButton(
+                onPressed: () => GoRouter.of(context).pushNamed('addAccount', extra: {'asBottomSheet': true, 'account': null}),
+                child: const Icon(Icons.add, size: 28),
+              ),
+              floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+              bottomNavigationBar: BottomAppBar(
+                shape: const CircularNotchedRectangle(),
+                notchMargin: 8,
+                child: SizedBox(
+                  height: 62,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.grid_view, color: selected == 0 ? colors.appbar_Color : Colors.grey),
+                        onPressed: () => GoRouter.of(context).goNamed('dashboard'),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.people, color: selected == 1 ? colors.appbar_Color : Colors.grey),
+                        onPressed: () => GoRouter.of(context).goNamed('accounts'),
+                      ),
+                      const SizedBox(width: 48),
+                      IconButton(
+                        icon: Icon(Icons.analytics, color: selected == 2 ? colors.appbar_Color : Colors.grey),
+                        onPressed: () => GoRouter.of(context).goNamed('analytics'),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.settings, color: selected == 3 ? colors.appbar_Color : Colors.grey),
+                        onPressed: () => GoRouter.of(context).goNamed('settings'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             );
           },
-        ),
-        GoRoute(
-          name: 'settings',
-          path: '/settings',
-          builder: (context, state) => const SettingsScreen(),
-        ),
-        GoRoute(
-          name: 'analytics',
-          path: '/analytics',
-          pageBuilder: (context, state) {
-            return CustomTransitionPage(
-              key: state.pageKey,
-              child: const AnalyticsScreen(),
-              transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                final tween = Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero);
-                return FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: animation.drive(tween),
-                    child: child,
-                  ),
+          routes: [
+            GoRoute(
+              name: 'dashboard',
+              path: '/dashboard',
+              builder: (context, state) => const Dashboard(),
+            ),
+            GoRoute(
+              name: 'accounts',
+              path: '/accounts',
+              builder: (context, state) => const AccountListScreen(),
+            ),
+            GoRoute(
+              name: 'accountDetail',
+              path: '/accounts/detail',
+              builder: (context, state) {
+                final extra = state.extra;
+                return AccountFollowUpScreen(account: extra as Account);
+              },
+            ),
+            GoRoute(
+              name: 'addAccount',
+              path: '/add',
+              pageBuilder: (context, state) {
+                final extra = state.extra;
+                Account? account;
+                bool asBottom = false;
+                if (extra is Map) {
+                  account = extra['account'] as Account?;
+                  asBottom = extra['asBottomSheet'] == true;
+                } else if (extra is Account) {
+                  account = extra;
+                }
+                return CustomTransitionPage(
+                  key: state.pageKey,
+                  opaque: false,
+                  barrierColor: Colors.black.withOpacity(0.15),
+                  barrierDismissible: true,
+                  maintainState: true,
+                  child: AddAccountScreen(account: account, asBottomSheet: asBottom),
+                  transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                    const begin = Offset(0.0, 1.0);
+                    const end = Offset.zero;
+                    final tween = Tween(begin: begin, end: end).chain(CurveTween(curve: Curves.easeOut));
+                    return SlideTransition(position: animation.drive(tween), child: child);
+                  },
                 );
               },
-            );
-          },
+            ),
+            GoRoute(
+              name: 'settings',
+              path: '/settings',
+              builder: (context, state) => const SettingsScreen(),
+            ),
+            GoRoute(
+              name: 'analytics',
+              path: '/analytics',
+              pageBuilder: (context, state) {
+                return CustomTransitionPage(
+                  key: state.pageKey,
+                  child: const AnalyticsScreen(),
+                  transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                    final tween = Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero);
+                    return FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: animation.drive(tween),
+                        child: child,
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ],
         ),
       ],
     );

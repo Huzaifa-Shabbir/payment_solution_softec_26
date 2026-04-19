@@ -311,17 +311,18 @@ class _DashboardState extends State<Dashboard>
    int _selectedIndex = 0;
    void _onNavTap(int idx) async {
      if (idx == 1) {
-       await context.pushNamed('accounts');
+       // navigate within the shell so the bottom bar remains visible
+       GoRouter.of(context).goNamed('accounts');
        await _refresh();
        return;
      }
      if (idx == 2) {
-       await context.pushNamed('analytics');
+       GoRouter.of(context).goNamed('analytics');
        return;
      }
      if (idx == 3) {
        // open settings screen via named route
-       await context.pushNamed('settings');
+       GoRouter.of(context).goNamed('settings');
        return;
      }
      setState(() => _selectedIndex = idx);
@@ -612,28 +613,6 @@ class _DashboardState extends State<Dashboard>
            _buildSearchFilter(),
            _buildList(),
          ],
-       ),
-       floatingActionButton: FloatingActionButton(
-         onPressed: _onAddPressed,
-         child: const Icon(Icons.add, size: 28),
-       ),
-       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-       bottomNavigationBar: BottomAppBar(
-         shape: const CircularNotchedRectangle(),
-         notchMargin: 8,
-         child: SizedBox(
-           height: 62,
-           child: Row(
-             mainAxisAlignment: MainAxisAlignment.spaceAround,
-             children: [
-               IconButton(icon: Icon(Icons.grid_view, color: _selectedIndex == 0 ? colors.appbar_Color : Colors.grey), onPressed: () => _onNavTap(0)),
-               IconButton(icon: Icon(Icons.people, color: _selectedIndex == 1 ? colors.appbar_Color : Colors.grey), onPressed: () => _onNavTap(1)),
-               const SizedBox(width: 48),
-               IconButton(icon: Icon(Icons.analytics, color: _selectedIndex == 2 ? colors.appbar_Color : Colors.grey), onPressed: () => _onNavTap(2)),
-               IconButton(icon: Icon(Icons.settings, color: _selectedIndex == 3 ? colors.appbar_Color : Colors.grey), onPressed: () => _onNavTap(3)),
-             ],
-           ),
-         ),
        ),
      );
    }
