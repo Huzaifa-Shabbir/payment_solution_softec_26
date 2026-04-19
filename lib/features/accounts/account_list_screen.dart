@@ -27,6 +27,24 @@ class _AccountListScreenState extends State<AccountListScreen>
      // load handled globally; get store in didChangeDependencies
    }
 
+   List<Account> _sortedForDisplay(List<Account> raw) {
+     final now = DateTime.now();
+     final out = List<Account>.from(raw);
+     int rank(Account a) {
+       if (!a.isPaid && a.dueDate.isBefore(now)) return 0;
+       if (!a.isPaid && !a.dueDate.isBefore(now)) return 1;
+       return 2;
+     }
+
+     out.sort((a, b) {
+       final ra = rank(a), rb = rank(b);
+       if (ra != rb) return ra - rb;
+       if (ra == 0 || ra == 1) return a.dueDate.compareTo(b.dueDate);
+       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+     });
+     return out;
+   }
+
    @override
    void didChangeDependencies() {
      super.didChangeDependencies();
@@ -124,7 +142,8 @@ class _AccountListScreenState extends State<AccountListScreen>
    Widget build(BuildContext context) {
      final colors = AppColors();
     final store = AccountStoreProvider.of(context);
-    final accounts = store.accounts;
+    // use a sorted copy for display: overdue -> pending -> others
+    final accounts = _sortedForDisplay(store.accounts);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Accounts'),

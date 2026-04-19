@@ -41,6 +41,26 @@ class _DashboardState extends State<Dashboard>
     _applyFilters();
    }
 
+   // Sort accounts: overdue (not paid & dueDate < now) first,
+   // then pending (not paid & dueDate >= now), then others (paid).
+   List<Account> _sortAccounts(List<Account> list) {
+     final now = DateTime.now();
+     final out = List<Account>.from(list);
+     int rank(Account a) {
+       if (!a.isPaid && a.dueDate.isBefore(now)) return 0;
+       if (!a.isPaid && !a.dueDate.isBefore(now)) return 1;
+       return 2;
+     }
+     out.sort((a, b) {
+       final ra = rank(a), rb = rank(b);
+       if (ra != rb) return ra - rb;
+       // tie-break: for overdue/pending sort by dueDate (earlier first), otherwise by name
+       if (ra == 0 || ra == 1) return a.dueDate.compareTo(b.dueDate);
+       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+     });
+     return out;
+   }
+
    void _applyFilters() {
     final store = AccountStoreProvider.of(context);
     final now = DateTime.now();
@@ -73,6 +93,9 @@ class _DashboardState extends State<Dashboard>
         result = accounts;
         break;
     }
+
+    // sort result: overdue -> pending -> others
+    result = _sortAccounts(result);
 
     setState(() {
       _filtered = result;
@@ -173,7 +196,9 @@ class _DashboardState extends State<Dashboard>
          );
          if (confirmed == true) {
            try {
-             await store.markDone(a);
+             // mark as done by updating account fields and persisting
+             final updated = a.copyWith(isPaid: true, status: 'Done');
+             await store.updateAccount(updated);
              _applyFilters();
              AccountsSnackBar.showSuccess(context, 'Marked as done');
            } catch (e) {

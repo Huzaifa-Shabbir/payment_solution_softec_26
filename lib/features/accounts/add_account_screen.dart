@@ -620,10 +620,12 @@ Regards,''',
                       );
                       if (confirmed == true) {
                         try {
-                          await store.markDone(a);
+                          final updated = a.copyWith(isPaid: true, status: 'Done');
+                          await store.updateAccount(updated);
                           AccountsSnackBar.showSuccess(context, 'Marked as done');
                           Navigator.of(context).pop(true);
                         } catch (e) {
+
                           AccountsSnackBar.showError(context, 'Failed to mark done: $e');
                         }
                       }
