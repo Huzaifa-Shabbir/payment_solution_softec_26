@@ -40,7 +40,12 @@ Deno.serve(async (req) => {
 
     const today = dateOnly(new Date());
 
-    const accounts = await fetchOverdueRows(today);
+    const customerId =
+      typeof body?.customerId === "string" ? body.customerId : null;
+
+    const mode = body?.mode ?? "scheduled"; // "instant" or "scheduled"
+
+    const accounts = await fetchCustomers(today, customerId);
 
     let sent = 0;
     let skipped = 0;
@@ -48,11 +53,38 @@ Deno.serve(async (req) => {
 
     for (const account of accounts) {
       const delayDays = diffDays(today, account.due_date);
-      const reminderType = pickReminderType(delayDays);
 
-      if (!reminderType) {
-        skipped++;
-        continue;
+      let reminderType: ReminderType | null = null;
+
+      // INSTANT MODE (called from Flutter after insert)
+      if (mode === "instant") {
+        // send immediately if due or past due (0 = due today)
+        if (delayDays >= 0) {
+          reminderType = "gentle"; // first message
+        } else {
+          skipped++;
+          continue;
+        }
+      }
+
+      // SCHEDULED MODE (cron)
+      else {
+        // skip if not due yet
+        if (delayDays < 0) {
+          skipped++;
+          continue;
+        }
+
+        // send every 2 days only
+        if (delayDays % 2 !== 0) {
+          skipped++;
+          continue;
+        }
+
+        // escalation rules
+        if (delayDays >= 0 && delayDays <= 3) reminderType = "gentle";
+        else if (delayDays <= 10) reminderType = "strong";
+        else reminderType = "escalation";
       }
 
       // Check if reminder already sent today
@@ -123,6 +155,27 @@ Deno.serve(async (req) => {
           }),
         });
 
+        // Update customer's follow-up dates
+        try {
+          const nextFollowUp = new Date();
+          nextFollowUp.setDate(nextFollowUp.getDate() + 2);
+
+          await fetch(`${SUPABASE_URL}/rest/v1/customers?id=eq.${account.id}`, {
+            method: "PATCH",
+            headers: {
+              apikey: SERVICE_KEY,
+              Authorization: `Bearer ${SERVICE_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              last_follow_up: today,
+              next_follow_up: nextFollowUp.toISOString().slice(0, 10),
+            }),
+          });
+        } catch (e) {
+          console.error("Failed to update follow-up dates:", e instanceof Error ? e.message : `${e}`);
+        }
+
         sent++;
         console.log(
           `Sent ${reminderType} reminder to ${account.email} (id=${messageId})`
@@ -192,13 +245,6 @@ function diffDays(todayStr: string, dueDateStr: string): number {
   const today = new Date(`${todayStr}T00:00:00Z`).getTime();
   const dueDate = new Date(`${dueDateStr}T00:00:00Z`).getTime();
   return Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
-}
-
-function pickReminderType(delayDays: number): ReminderType | null {
-  if (delayDays >= 1 && delayDays <= 3) return "gentle";
-  if (delayDays >= 4 && delayDays <= 10) return "strong";
-  if (delayDays >= 11) return "escalation";
-  return null;
 }
 
 function formatDate(dateStr: string): string {
@@ -318,38 +364,35 @@ function generateEmailMessage(
   };
 }
 
-async function fetchOverdueRows(today: string): Promise<AccountRow[]> {
+async function fetchCustomers(
+  today: string,
+  customerId: string | null
+): Promise<AccountRow[]> {
   const headers = {
     apikey: SERVICE_KEY,
     Authorization: `Bearer ${SERVICE_KEY}`,
   };
 
-  // Source of truth: customers table. Support both due_date and due_Date column naming.
-  let customersRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/customers?due_date=lt.${today}&select=id,name,email,amount,due_date,status`,
-    { headers }
-  );
+  let query = "";
 
-  if (!customersRes.ok) {
-    customersRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/customers?due_Date=lt.${today}&select=id,name,email,amount,due_Date,status`,
-      { headers }
-    );
+  if (customerId) {
+    query = `${SUPABASE_URL}/rest/v1/customers?id=eq.${customerId}&select=id,name,email,amount,due_date,status`;
+  } else {
+    query = `${SUPABASE_URL}/rest/v1/customers?select=id,name,email,amount,due_date,status`;
   }
 
-  if (!customersRes.ok) {
-    throw new Error(
-      `Failed to fetch overdue rows from customers: ${customersRes.status} ${customersRes.statusText}`
-    );
+  const res = await fetch(query, { headers });
+
+  if (!res.ok) {
+    throw new Error("Failed to fetch customers");
   }
 
-  const rows = (await customersRes.json()) as CustomerRow[];
+  const rows = (await res.json()) as CustomerRow[];
+
   return rows
     .filter((row) => {
       const status = `${row.status ?? ""}`.toLowerCase();
-      const paidByStatus = status === "paid" || status === "done";
-      const paidByFlag = row.is_paid === true;
-      return !paidByStatus && !paidByFlag;
+      return status !== "paid" && row.is_paid !== true;
     })
     .map((row) => ({
       id: row.id,
@@ -359,4 +402,3 @@ async function fetchOverdueRows(today: string): Promise<AccountRow[]> {
       due_date: row.due_Date ?? row.due_date ?? today,
     }));
 }
-
