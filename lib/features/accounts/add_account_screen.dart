@@ -111,7 +111,15 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
         return;
       }
       final id = widget.account?.id ?? DateTime.now().millisecondsSinceEpoch.toString();
-      // Ensure new accounts are unpaid and marked as 'Pending' by default.
+
+      // determine overdue, isPaid and status based on due date / payment state
+      final now = DateTime.now();
+      final isOverdue = _dueDate!.isBefore(now);
+      // if overdue, it cannot be marked as paid
+      final existingPaid = widget.account?.isPaid ?? false;
+      final isPaid = existingPaid && !isOverdue;
+      final status = isPaid ? 'Done' : (isOverdue ? 'Overdue' : 'Pending');
+
       final acc = Account(
         id: id,
         name: _nameCtrl.text.trim(),
@@ -121,9 +129,8 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
         dueDate: _dueDate!,
         // preserve existing lastContactDate when editing, otherwise set to now
         lastContactDate: widget.account?.lastContactDate ?? DateTime.now(),
-        // explicit defaults: if editing, keep existing values; if creating, set unpaid + pending
-        isPaid: widget.account?.isPaid ?? false,
-        status: widget.account?.status ?? 'Pending',
+        isPaid: isPaid,
+        status: status,
       );
 
       if (widget.account == null) {
